@@ -1,0 +1,9 @@
+{
+  "name": "valuation-tool",
+  "private": true,
+  "description": "Arabic-first RTL income-approach real estate valuation tool (NOI, Cap Rate, Direct Cap, DCF, comps, sensitivity)",
+  "scripts": {
+    "test": "node --test tests/engine.test.js",
+    "build": "node build.mjs"
+  }
+}

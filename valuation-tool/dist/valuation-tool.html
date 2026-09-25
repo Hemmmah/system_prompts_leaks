@@ -1,0 +1,1926 @@
+<title>مُقيِّم الدخل</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700&display=swap">
+<style>
+:root {
+  --paper: #F3F5F8;
+  --surface: #FFFFFF;
+  --surface-2: #F8FAFC;
+  --ink: #15202C;
+  --muted: #5A6777;
+  --line: #D8DEE6;
+  --line-strong: #B9C3CF;
+  --accent: #1D4E89;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E4ECF6;
+  --gold: #8E6210;
+  --gold-soft: #F6EEDC;
+  --good: #1F7446;
+  --good-soft: #E2F2E8;
+  --warn: #9A5B00;
+  --warn-soft: #FBEFD9;
+  --bad: #B3261E;
+  --bad-soft: #FBE4E2;
+  --shadow: 0 1px 2px rgba(21, 32, 44, .06), 0 4px 14px rgba(21, 32, 44, .05);
+  --radius: 10px;
+  --f-body: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+  --f-head: "Noto Kufi Arabic", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0E151E; --surface: #151F2B; --surface-2: #1A2634; --ink: #E5EBF2; --muted: #97A4B4;
+    --line: #283646; --line-strong: #3A4B5E; --accent: #82B2EC; --accent-ink: #0E151E; --accent-soft: #1A2D45;
+    --gold: #E2B55E; --gold-soft: #33291A; --good: #5DC28B; --good-soft: #15301F; --warn: #E7A94A; --warn-soft: #36280F;
+    --bad: #F2847B; --bad-soft: #3A1C1A; --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0E151E; --surface: #151F2B; --surface-2: #1A2634; --ink: #E5EBF2; --muted: #97A4B4;
+  --line: #283646; --line-strong: #3A4B5E; --accent: #82B2EC; --accent-ink: #0E151E; --accent-soft: #1A2D45;
+  --gold: #E2B55E; --gold-soft: #33291A; --good: #5DC28B; --good-soft: #15301F; --warn: #E7A94A; --warn-soft: #36280F;
+  --bad: #F2847B; --bad-soft: #3A1C1A; --shadow: 0 1px 2px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+html, body { background: var(--paper); }
+body { margin: 0; color: var(--ink); font: 15px/1.6 var(--f-body); font-variant-numeric: tabular-nums; }
+#app { max-width: 1400px; margin: 0 auto; padding-inline: 16px; padding-block: 12px 48px; }
+h1, h2, h3 { font-family: var(--f-head); line-height: 1.35; text-wrap: balance; margin: 0; }
+h1 { font-size: 1.3rem; font-weight: 700; }
+h2 { font-size: 1.1rem; font-weight: 700; }
+h3 { font-size: .95rem; font-weight: 600; color: var(--muted); }
+p { margin: 0; }
+small, .hint { color: var(--muted); font-size: .8rem; }
+.num, td.num, th.num { direction: ltr; text-align: right; unicode-bidi: plaintext; }
+bdi { unicode-bidi: isolate; }
+
+/* ---------- top bar */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-block: 8px 12px; }
+.brand { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brand .eyebrow { font-size: .75rem; letter-spacing: .02em; color: var(--accent); font-weight: 600; }
+.brand h1 { overflow-wrap: anywhere; }
+.top .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------- KPI strip */
+.strip { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.kpi { background: var(--surface); padding: 8px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0; cursor: pointer; border: 0; text-align: start; font: inherit; color: inherit; }
+.kpi:hover { background: var(--surface-2); }
+.kpi .k { font-size: .75rem; color: var(--muted); }
+.kpi .v { font-size: 1.05rem; font-weight: 600; direction: ltr; text-align: right; }
+.kpi .s { font-size: .72rem; color: var(--muted); direction: ltr; text-align: right; }
+.kpi.final { background: var(--gold-soft); }
+.kpi.final .v { color: var(--gold); font-size: 1.2rem; }
+.kpi.alerts .v { color: var(--warn); }
+
+/* ---------- steps nav */
+.steps { display: flex; gap: 4px; overflow-x: auto; padding-block: 12px; scrollbar-width: thin; }
+.steps button { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .88rem; cursor: pointer; }
+.steps button .n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: .72rem; font-weight: 700; }
+.steps button[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.steps button[aria-current="page"] .n { background: var(--accent-ink); color: var(--accent); }
+
+/* ---------- panels */
+.view { display: flex; flex-direction: column; gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.panel-head .tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; align-items: start; }
+.cols-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; align-items: start; }
+.form { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px 14px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field .lbl { font-size: .82rem; color: var(--muted); }
+.field.wide { grid-column: 1 / -1; }
+
+input, select, textarea { font: inherit; font-size: .9rem; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; }
+input.num { direction: ltr; text-align: right; }
+textarea { min-height: 72px; resize: vertical; line-height: 1.6; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); padding: 0; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: .88rem; cursor: pointer; }
+
+.btn { font: inherit; font-size: .85rem; border-radius: 6px; padding: 6px 12px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--accent); border-color: var(--line-strong); }
+.btn.ghost:hover { background: var(--accent-soft); }
+.btn.sm { padding: 2px 8px; font-size: .78rem; }
+.btn.danger { color: var(--bad); border-color: var(--line-strong); background: transparent; }
+
+/* ---------- tables */
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: start; vertical-align: middle; white-space: nowrap; }
+thead th { background: var(--surface-2); font-weight: 600; color: var(--muted); font-size: .78rem; position: sticky; top: 0; }
+tbody tr:last-child td { border-bottom: 0; }
+tfoot td { background: var(--surface-2); font-weight: 600; border-top: 1px solid var(--line-strong); border-bottom: 0; }
+table.grid td { padding: 3px 4px; }
+table.grid input, table.grid select { padding: 4px 6px; font-size: .83rem; background: transparent; border-color: transparent; }
+table.grid input:hover, table.grid select:hover { border-color: var(--line); }
+table.grid input:focus, table.grid select:focus { background: var(--surface); border-color: var(--accent); }
+table.grid .w-xs input { width: 4.2rem; } table.grid .w-s input, table.grid .w-s select { width: 6.5rem; }
+table.grid .w-m input, table.grid .w-m select { width: 9rem; } table.grid .w-l input { width: 14rem; }
+tr.row-out td { background: var(--warn-soft); }
+tr.row-off td { opacity: .55; }
+tr.row-bad td { background: var(--bad-soft); }
+tr.total td { font-weight: 700; border-top: 2px solid var(--ink); }
+tr.sub td { font-weight: 600; background: var(--surface-2); }
+td.computed { color: var(--accent); font-weight: 500; }
+.stmt td:first-child { white-space: normal; }
+.stmt td.neg { color: var(--bad); }
+.adjgrp { display: flex; gap: 2px; }
+.adjgrp input { width: 3.4rem !important; }
+
+/* ---------- chips */
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; white-space: nowrap; }
+.chip.good { background: var(--good-soft); color: var(--good); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+.chip.muted { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.chip.link { background: var(--accent-soft); color: var(--accent); }
+
+/* ---------- results */
+.result { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; padding: 12px 16px; background: var(--accent-soft); border-radius: 8px; }
+.result .big { font-family: var(--f-head); font-size: 1.6rem; font-weight: 700; color: var(--accent); direction: ltr; }
+.result.gold { background: var(--gold-soft); }
+.result.gold .big { color: var(--gold); }
+.result .lab { font-size: .82rem; color: var(--muted); }
+.trace { margin: 0; padding: 10px 14px; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: 8px; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: .84rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
+.stat { background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; display: flex; flex-direction: column; }
+.stat .k { font-size: .72rem; color: var(--muted); }
+.stat .v { font-weight: 600; direction: ltr; text-align: right; }
+.stat.hl { background: var(--accent-soft); border-color: var(--accent); }
+.stat.hl .v { color: var(--accent); }
+.warnings { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.warnings li { padding: 6px 10px; background: var(--warn-soft); color: var(--ink); border-inline-start: 3px solid var(--warn); border-radius: 4px; font-size: .85rem; }
+.warnings li.ok { background: var(--good-soft); border-color: var(--good); }
+.method { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: var(--surface); }
+.method.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.method .mv { font-size: 1.25rem; font-weight: 700; direction: ltr; text-align: right; color: var(--accent); }
+
+/* ---------- dot plot / number line */
+.dots { position: relative; height: 54px; margin: 6px 12px 0; direction: ltr; }
+.dots .axis { position: absolute; left: 0; right: 0; top: 24px; height: 2px; background: var(--line-strong); }
+.dots .band { position: absolute; top: 16px; height: 18px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 4px; opacity: .8; }
+.dots .dot { position: absolute; top: 18px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
+.dots .dot.out { background: var(--warn); }
+.dots .dot.off { background: var(--line-strong); }
+.dots .mark { position: absolute; top: 8px; width: 2px; height: 34px; margin-left: -1px; background: var(--gold); }
+.dots .mark span { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); font-size: .72rem; color: var(--gold); font-weight: 700; white-space: nowrap; }
+.dots .tick { position: absolute; top: 34px; font-size: .7rem; color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
+
+/* ---------- tornado */
+.tornado { display: flex; flex-direction: column; gap: 4px; }
+.trow { display: grid; grid-template-columns: minmax(110px, 180px) 1fr; gap: 10px; align-items: center; font-size: .82rem; }
+.tbar { position: relative; height: 26px; direction: ltr; background: var(--surface-2); border-radius: 4px; }
+.tbar .c { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .5; }
+.tbar .seg { position: absolute; top: 4px; bottom: 4px; border-radius: 3px; }
+.tbar .seg.pos { background: var(--good); }
+.tbar .seg.neg { background: var(--bad); }
+.tbar .lbl { position: absolute; top: 3px; font-size: .72rem; font-weight: 600; white-space: nowrap; color: var(--ink); }
+.heat td.num { font-weight: 500; }
+.heat td.base { outline: 2px solid var(--gold); outline-offset: -2px; font-weight: 700; }
+
+/* ---------- modal */
+.modal-bg { position: fixed; inset: 0; background: rgba(10, 16, 24, .45); z-index: 20; display: grid; place-items: center; padding: 16px; }
+.modal { background: var(--surface); border-radius: var(--radius); padding: 16px; width: min(760px, 100%); max-height: 90vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
+.modal textarea { min-height: 220px; direction: ltr; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); inset-inline-start: 16px; background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 8px; z-index: 30; font-size: .88rem; }
+
+/* ---------- report */
+.report { display: flex; flex-direction: column; gap: 14px; }
+.report dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; font-size: .88rem; }
+.report dt { color: var(--muted); }
+.report dd { margin: 0; }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 4px 20px; font-size: .88rem; margin: 0; padding: 0; list-style: none; }
+.kv li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dotted var(--line); padding-block: 3px; }
+.kv li b { font-weight: 600; direction: ltr; unicode-bidi: plaintext; }
+
+@media (max-width: 640px) {
+  .strip { position: static; grid-template-columns: repeat(2, 1fr); }
+  .result .big { font-size: 1.3rem; }
+}
+@media print {
+  .steps, .top .actions, .no-print, .rowact, .modal-bg { display: none !important; }
+  .strip { position: static; box-shadow: none; }
+  body { background: #fff; font-size: 12px; }
+  .panel { break-inside: avoid; border-color: #ccc; }
+  .scroll { overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+</style>
+<div id="app" lang="ar" dir="rtl"></div>
+<script>
+document.documentElement.setAttribute('lang', 'ar');
+document.documentElement.setAttribute('dir', 'rtl');
+/*
+ * محرك حسابات التقييم العقاري — Valuation engine
+ * Pure functions, no DOM. Works in the browser (window.ValEngine) and in Node (require).
+ *
+ * Conventions:
+ *  - The model stores raw user input (strings allowed, Arabic digits allowed).
+ *    Every number is read through num() / pct(), so cleaning happens in one place.
+ *  - Percent inputs are stored as percent numbers ("7.5" means 7.5%).
+ *  - Money amounts are annual unless stated otherwise.
+ *  - Sensitivity works by adding "shocks" to a model copy (model.__shocks); every
+ *    calculation reads the shocks, so any output can be re-run under any shock set.
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.ValEngine = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  // ---------------------------------------------------------------- parsing
+
+  function toLatinDigits(s) {
+    return s
+      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x660); })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x6F0); });
+  }
+
+  /** Parse a user-entered number. Handles Arabic/Persian digits, thousands separators,
+   *  Arabic decimal mark, currency text, %, (negatives), and k/m/ألف/مليون suffixes. */
+  function num(v) {
+    if (v === null || v === undefined) return NaN;
+    if (typeof v === 'number') return isFinite(v) ? v : NaN;
+    if (typeof v === 'boolean') return NaN;
+    var s = toLatinDigits(String(v)).trim();
+    if (!s) return NaN;
+    s = s.replace(/٫/g, '.').replace(/[٬،,\s  ']/g, '');
+    var neg = false;
+    if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+    s = s.replace(/[%٪]/g, '');
+    var mult = 1;
+    if (/(مليون|mn|m)$/i.test(s)) { mult = 1e6; s = s.replace(/(مليون|mn|m)$/i, ''); }
+    else if (/(ألف|الف|k)$/i.test(s)) { mult = 1e3; s = s.replace(/(ألف|الف|k)$/i, ''); }
+    s = s.replace(/[^0-9.\-]/g, '');
+    if (!s || s === '-' || s === '.' || (s.match(/\./g) || []).length > 1) return NaN;
+    if (s.lastIndexOf('-') > 0) return NaN;
+    var n = Number(s) * mult;
+    if (!isFinite(n)) return NaN;
+    return neg ? -n : n;
+  }
+
+  function numOr(v, d) { var n = num(v); return isFinite(n) ? n : d; }
+  function pct(v, d) { var n = num(v); return isFinite(n) ? n / 100 : (d === undefined ? NaN : d); }
+  function isNum(n) { return typeof n === 'number' && isFinite(n); }
+  function clamp(x, a, b) { return Math.min(b, Math.max(a, x)); }
+
+  /** "3" -> [3,3,...]; "0, 2, 3" -> [0,2,3,3,...] (last value repeats). Values in percent. */
+  function series(v, n, fallback) {
+    var parts = toLatinDigits(String(v === undefined || v === null ? '' : v))
+      .split(/[,;\u060C\u061B|\s]+/).map(num).filter(isNum);
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(parts.length ? parts[Math.min(i, parts.length - 1)] : fallback);
+    return out;
+  }
+
+  /** One-off amounts by year: "3:500000; 7:1,200,000" (year:amount pairs, separated by ; or new line). */
+  function schedule(v, n) {
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(0);
+    toLatinDigits(String(v || '')).split(/[;\u061B\n|]+/).forEach(function (part) {
+      var m = part.split(/[:=]/);
+      if (m.length !== 2) return;
+      var y = Math.round(num(m[0])), a = num(m[1]);
+      if (isNum(y) && y >= 1 && y <= n && isNum(a)) out[y - 1] += a;
+    });
+    return out;
+  }
+
+  function roundTo(v, step) {
+    var s = num(step);
+    if (!isNum(v)) return NaN;
+    if (!isNum(s) || s <= 0) return v;
+    return Math.round(v / s) * s;
+  }
+
+  // ------------------------------------------------------------- statistics
+
+  function quantileSorted(s, p) {
+    if (!s.length) return NaN;
+    var idx = (s.length - 1) * p, lo = Math.floor(idx), hi = Math.ceil(idx);
+    return s[lo] + (s[hi] - s[lo]) * (idx - lo);
+  }
+
+  function describe(values, weights) {
+    var v = [], w = [];
+    for (var i = 0; i < values.length; i++) {
+      if (isNum(values[i])) { v.push(values[i]); w.push(weights && isNum(weights[i]) && weights[i] > 0 ? weights[i] : 1); }
+    }
+    var n = v.length;
+    var r = { n: n, min: NaN, max: NaN, mean: NaN, median: NaN, sd: NaN, cv: NaN, q1: NaN, q3: NaN, iqr: NaN, trimmed: NaN, weighted: NaN };
+    if (!n) return r;
+    var s = v.slice().sort(function (a, b) { return a - b; });
+    var sum = v.reduce(function (a, b) { return a + b; }, 0);
+    r.min = s[0]; r.max = s[n - 1]; r.mean = sum / n;
+    r.median = quantileSorted(s, 0.5);
+    r.q1 = quantileSorted(s, 0.25); r.q3 = quantileSorted(s, 0.75); r.iqr = r.q3 - r.q1;
+    if (n > 1) {
+      var ss = v.reduce(function (a, x) { return a + (x - r.mean) * (x - r.mean); }, 0);
+      r.sd = Math.sqrt(ss / (n - 1));
+      r.cv = r.mean !== 0 ? r.sd / Math.abs(r.mean) : NaN;
+    } else { r.sd = 0; r.cv = 0; }
+    var k = n >= 5 ? Math.max(1, Math.floor(n * 0.1)) : 0;
+    var t = s.slice(k, n - k);
+    r.trimmed = t.reduce(function (a, b) { return a + b; }, 0) / t.length;
+    var ws = w.reduce(function (a, b) { return a + b; }, 0);
+    r.weighted = v.reduce(function (a, x, j) { return a + x * w[j]; }, 0) / ws;
+    return r;
+  }
+
+  /** Flag outliers. method: iqr (k=1.5) | zscore (k=2) | mad (k=3.5) | none */
+  function outliers(values, method, k) {
+    var flags = values.map(function () { return false; });
+    var scores = values.map(function () { return NaN; });
+    var vals = values.filter(isNum);
+    var res = { flags: flags, scores: scores, lower: NaN, upper: NaN, method: method || 'iqr', applicable: vals.length >= 5 };
+    if (!res.applicable || method === 'none') return res;
+    var st = describe(vals);
+    if (method === 'zscore') {
+      var kz = isNum(num(k)) ? num(k) : 2;
+      res.lower = st.mean - kz * st.sd; res.upper = st.mean + kz * st.sd;
+      values.forEach(function (x, i) { if (isNum(x) && st.sd > 0) { scores[i] = (x - st.mean) / st.sd; flags[i] = Math.abs(scores[i]) > kz; } });
+    } else if (method === 'mad') {
+      var km = isNum(num(k)) ? num(k) : 3.5;
+      var dev = vals.map(function (x) { return Math.abs(x - st.median); }).sort(function (a, b) { return a - b; });
+      var mad = quantileSorted(dev, 0.5);
+      if (mad > 0) {
+        res.lower = st.median - km * mad / 0.6745; res.upper = st.median + km * mad / 0.6745;
+        values.forEach(function (x, i) { if (isNum(x)) { scores[i] = 0.6745 * (x - st.median) / mad; flags[i] = Math.abs(scores[i]) > km; } });
+      }
+    } else {
+      var ki = isNum(num(k)) ? num(k) : 1.5;
+      res.lower = st.q1 - ki * st.iqr; res.upper = st.q3 + ki * st.iqr;
+      values.forEach(function (x, i) {
+        if (isNum(x)) { flags[i] = x < res.lower || x > res.upper; scores[i] = st.iqr > 0 ? (x - st.median) / st.iqr : 0; }
+      });
+    }
+    return res;
+  }
+
+  /**
+   * Generic evidence analysis used by rental comps, sales comps and cap-rate comps.
+   * items: [{value, weight, include}]  (include=false => excluded by the appraiser)
+   * opts: {pick: median|mean|trimmed|weighted|manual, manual, outlierMethod, outlierK,
+   *        excludeOutliers: bool, range: iqr|minmax|sd}
+   */
+  function analyzeEvidence(items, opts) {
+    opts = opts || {};
+    var vals = items.map(function (it) { return it.valid && it.include ? it.value : NaN; });
+    var ol = outliers(vals, opts.outlierMethod || 'iqr', opts.outlierK);
+    var used = [], usedW = [];
+    var rows = items.map(function (it, i) {
+      var isOut = ol.flags[i];
+      var use = it.valid && it.include && !(opts.excludeOutliers && isOut);
+      if (use) { used.push(it.value); usedW.push(it.weight); }
+      return Object.assign({}, it, { outlier: isOut, score: ol.scores[i], used: use });
+    });
+    var st = describe(used, usedW);
+    var pick = opts.pick || 'median';
+    var indicated = pick === 'manual' ? num(opts.manual) : st[pick];
+    if (!isNum(indicated)) indicated = st.median;
+    var rangeMode = opts.range || (st.n >= 4 ? 'iqr' : 'minmax');
+    var low, high;
+    if (rangeMode === 'iqr') { low = st.q1; high = st.q3; }
+    else if (rangeMode === 'sd') { low = st.mean - st.sd; high = st.mean + st.sd; }
+    else { low = st.min; high = st.max; }
+    var warnings = [];
+    if (st.n === 0) warnings.push('لا توجد مقارنات صالحة مستخدمة.');
+    else if (st.n < 3) warnings.push('عدد المقارنات المستخدمة (' + st.n + ') أقل من 3؛ الدليل ضعيف.');
+    if (st.n >= 3 && st.cv > 0.2) warnings.push('تشتت مرتفع بين المقارنات (معامل الاختلاف ' + (st.cv * 100).toFixed(1) + '%).');
+    var nOut = rows.filter(function (r) { return r.outlier; }).length;
+    if (nOut && !opts.excludeOutliers) warnings.push(nOut + ' قيمة شاذة مرصودة وما زالت ضمن الحساب — راجعها أو فعّل الاستبعاد التلقائي.');
+    if (!ol.applicable && items.length) warnings.push('كشف القيم الشاذة الآلي يحتاج 5 مقارنات صالحة على الأقل؛ راجع القيم يدوياً.');
+    return { rows: rows, stats: st, indicated: indicated, low: low, high: high, pick: pick, rangeMode: rangeMode, outlierBounds: [ol.lower, ol.upper], warnings: warnings };
+  }
+
+  // -------------------------------------------------------- comps normalise
+
+  var ADJ_KEYS = ['time', 'location', 'size', 'condition', 'age', 'other'];
+
+  function adjTotal(adj) {
+    var t = 0;
+    ADJ_KEYS.forEach(function (k) { var v = num(adj && adj[k]); if (isNum(v)) t += v; });
+    return t;
+  }
+
+  function normKey(s) { return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+  /** Rental comps -> annual rent per m², adjusted. */
+  function normalizeRentComps(rows) {
+    var seen = {};
+    return (rows || []).map(function (r) {
+      var rent = num(r.rent), area = num(r.area);
+      var perYear = r.period === 'monthly' ? 12 : 1;
+      var issues = [];
+      var base = NaN;
+      if (!isNum(rent) || rent <= 0) issues.push('الإيجار غير صالح');
+      if (r.basis === 'perM2') base = rent * perYear;
+      else {
+        if (!isNum(area) || area <= 0) issues.push('المساحة مطلوبة');
+        base = rent * perYear / area;
+      }
+      var adj = adjTotal(r.adj);
+      var value = base * (1 + adj / 100);
+      var key = normKey(r.label) + '|' + rent + '|' + area;
+      var dup = !!seen[key]; seen[key] = true;
+      if (dup) issues.push('مكرر محتمل');
+      var valid = isNum(value) && value > 0 && issues.filter(function (x) { return x !== 'مكرر محتمل'; }).length === 0;
+      return { label: r.label, category: (r.category || '').trim(), base: base, adjPct: adj, value: value, weight: numOr(r.weight, 1),
+        include: r.include !== false, valid: valid, issues: issues, duplicate: dup };
+    });
+  }
+
+  /** Sales comps -> price per m², adjusted. */
+  function normalizeSaleComps(rows) {
+    var seen = {};
+    return (rows || []).map(function (r) {
+      var price = num(r.price), area = num(r.area);
+      var issues = [];
+      var base = NaN;
+      if (!isNum(price) || price <= 0) issues.push('السعر غير صالح');
+      if (r.basis === 'perM2') base = price;
+      else {
+        if (!isNum(area) || area <= 0) issues.push('المساحة مطلوبة');
+        base = price / area;
+      }
+      var adj = adjTotal(r.adj);
+      var value = base * (1 + adj / 100);
+      var key = normKey(r.label) + '|' + price + '|' + area;
+      var dup = !!seen[key]; seen[key] = true;
+      if (dup) issues.push('مكرر محتمل');
+      var valid = isNum(value) && value > 0 && issues.filter(function (x) { return x !== 'مكرر محتمل'; }).length === 0;
+      return { label: r.label, base: base, adjPct: adj, value: value, weight: numOr(r.weight, 1),
+        include: r.include !== false, valid: valid, issues: issues, duplicate: dup };
+    });
+  }
+
+  /** Cap-rate evidence: implied cap = NOI / price (or a stated cap), plus adjustment in % points. Value in %. */
+  function normalizeCapComps(rows) {
+    return (rows || []).map(function (r) {
+      var price = num(r.price), noi = num(r.noi), stated = num(r.capRate);
+      var issues = [];
+      var base = NaN;
+      if (isNum(price) && price > 0 && isNum(noi) && noi > 0) base = noi / price * 100;
+      else if (isNum(stated) && stated > 0) base = stated;
+      else issues.push('أدخل السعر وصافي الدخل أو معدل رسملة معلن');
+      var adj = numOr(r.adjPts, 0);
+      var value = base + adj;
+      if (isNum(value) && (value < 2 || value > 20)) issues.push('معدل خارج النطاق المعتاد');
+      var valid = isNum(value) && value > 0 && issues.indexOf('أدخل السعر وصافي الدخل أو معدل رسملة معلن') < 0;
+      return { label: r.label, base: base, adjPct: adj, value: value, weight: numOr(r.weight, 1), include: r.include !== false, valid: valid, issues: issues };
+    });
+  }
+
+  function evidenceOpts(cfg) {
+    cfg = cfg || {};
+    return { pick: cfg.pick, manual: cfg.manual, outlierMethod: cfg.outlierMethod, outlierK: cfg.outlierK,
+      excludeOutliers: !!cfg.excludeOutliers, range: cfg.range === 'auto' ? undefined : cfg.range };
+  }
+
+  /** Market rent per m² per category ('' = all). */
+  function analyzeRentComps(model) {
+    var cfg = model.rentComps || {};
+    var norm = normalizeRentComps(cfg.rows);
+    var cats = {};
+    norm.forEach(function (r) { cats[r.category || ''] = true; });
+    var out = { all: analyzeEvidence(norm, evidenceOpts(cfg)), byCategory: {}, categories: Object.keys(cats).filter(Boolean) };
+    out.categories.forEach(function (c) {
+      var subset = norm.map(function (r) { return r.category === c ? r : Object.assign({}, r, { include: false }); });
+      var a = analyzeEvidence(subset, evidenceOpts(cfg));
+      a.rows = a.rows.filter(function (r) { return r.category === c; });
+      out.byCategory[c] = a;
+    });
+    // Appraiser override per category
+    var ov = cfg.overrides || {};
+    out.rateFor = function (cat) {
+      if (cat && isNum(num(ov[cat]))) return num(ov[cat]);
+      if (cat && out.byCategory[cat] && out.byCategory[cat].stats.n) return out.byCategory[cat].indicated;
+      return out.all.indicated;
+    };
+    return out;
+  }
+
+  // ------------------------------------------------------------------ shocks
+
+  var SHOCKS = {
+    rentPct: { label: 'الإيجارات', unit: '%', step: 5 },
+    vacancyPts: { label: 'نسبة الشغور', unit: 'نقطة', step: 2 },
+    opexPct: { label: 'المصروفات التشغيلية', unit: '%', step: 10 },
+    capBps: { label: 'معدل الرسملة', unit: 'bps', step: 50 },
+    discountBps: { label: 'معدل الخصم', unit: 'bps', step: 50 },
+    exitCapBps: { label: 'معدل الرسملة التخارجي', unit: 'bps', step: 50 },
+    growthPts: { label: 'نمو الإيجار', unit: 'نقطة', step: 1 },
+    expenseGrowthPts: { label: 'نمو المصروفات', unit: 'نقطة', step: 1 },
+    salePct: { label: 'سعر المتر في المقارنات البيعية', unit: '%', step: 5 }
+  };
+
+  function sh(model, k) { var s = model.__shocks; return s && isNum(s[k]) ? s[k] : 0; }
+
+  function withShocks(model, shocks) {
+    var m = Object.assign({}, model);
+    var s = Object.assign({}, model.__shocks || {});
+    Object.keys(shocks || {}).forEach(function (k) { var v = num(shocks[k]); if (isNum(v)) s[k] = (s[k] || 0) + v; });
+    m.__shocks = s;
+    return m;
+  }
+
+  // --------------------------------------------------------------- rent roll
+
+  /** year (1-based) lets contract leases revert to market after u.leaseYears. */
+  function computeRentRoll(model, rentAnalysis, year) {
+    year = year || 1;
+    var inc = model.income || {};
+    var defBasis = inc.rentBasis || 'blended';
+    var contractMult = inc.contractPeriod === 'monthly' ? 12 : 1;
+    var rentShock = 1 + sh(model, 'rentPct') / 100;
+    var rows = (inc.units || []).map(function (u) {
+      var units = numOr(u.units, 1), area = num(u.area);
+      var occ = clamp(numOr(u.occupied, units), 0, units);
+      var rate = u.marketSource === 'comps' && rentAnalysis ? rentAnalysis.rateFor(u.category) : num(u.marketRate);
+      var marketUnit = isNum(num(u.marketRentUnit)) && u.marketSource === 'unit' ? num(u.marketRentUnit) : rate * area;
+      var contractUnit = num(u.contractRent) * contractMult;
+      var leaseYears = num(u.leaseYears);
+      var expired = isNum(leaseYears) && year > leaseYears;
+      var hasContract = isNum(contractUnit) && contractUnit > 0 && !expired;
+      var basis = u.basis && u.basis !== 'default' ? u.basis : defBasis;
+      var pgi;
+      if (basis === 'market') pgi = units * marketUnit;
+      else if (basis === 'contract') pgi = units * (hasContract ? contractUnit : marketUnit);
+      else pgi = occ * (hasContract ? contractUnit : marketUnit) + (units - occ) * marketUnit;
+      var issues = [];
+      if (!isNum(area) || area <= 0) issues.push('المساحة');
+      if (!isNum(marketUnit)) issues.push('الإيجار السوقي');
+      pgi = isNum(pgi) ? pgi * rentShock : 0;
+      var marketTotal = isNum(marketUnit) ? units * marketUnit * rentShock : 0;
+      var contractTotal = hasContract ? units * contractUnit * rentShock : NaN;
+      return { label: u.label, category: u.category, units: units, area: area, totalArea: units * (isNum(area) ? area : 0), occupied: occ,
+        marketRate: rate, marketUnit: marketUnit, contractUnit: contractUnit, basis: basis, pgi: pgi,
+        marketTotal: marketTotal, contractTotal: contractTotal, expired: expired,
+        reversionGap: hasContract && isNum(marketUnit) ? (marketUnit - contractUnit) / contractUnit : NaN, issues: issues };
+    });
+    var t = { pgi: 0, marketTotal: 0, contractTotal: 0, area: 0, units: 0, occupied: 0 };
+    rows.forEach(function (r) {
+      t.pgi += r.pgi; t.marketTotal += r.marketTotal; t.contractTotal += isNum(r.contractTotal) ? r.contractTotal : 0;
+      t.area += r.totalArea; t.units += r.units; t.occupied += r.occupied;
+    });
+    t.physicalOccupancy = t.units ? t.occupied / t.units : NaN;
+    return { rows: rows, totals: t };
+  }
+
+  // --------------------------------------------------------------------- NOI
+
+  /**
+   * factors: {revenue, expense, vacancyPct} for DCF years. Returns full statement + trace.
+   */
+  function computeNOI(model, rentAnalysis, factors) {
+    factors = factors || {};
+    var inc = model.income || {};
+    var cs = model.case || {};
+    var rev = isNum(factors.revenue) ? factors.revenue : 1;
+    var exf = isNum(factors.expense) ? factors.expense : 1;
+    var rr = computeRentRoll(model, rentAnalysis, factors.year);
+    var pgi;
+    if (inc.mode === 'direct') pgi = numOr(inc.pgiDirect, 0) * (1 + sh(model, 'rentPct') / 100);
+    else pgi = rr.totals.pgi;
+    pgi *= rev;
+    var gla = numOr(cs.gla, rr.totals.area);
+    var vac = isNum(factors.vacancyPct) ? factors.vacancyPct : pct(inc.vacancyPct, 0);
+    vac = clamp(vac + sh(model, 'vacancyPts') / 100, 0, 1);
+    var vacancyLoss = pgi * vac;
+    var coll = pct(inc.collectionLossPct, 0);
+    var collectionLoss = (pgi - vacancyLoss) * coll;
+    var other = numOr(inc.otherIncome, 0) * rev;
+    var egi = pgi - vacancyLoss - collectionLoss + other;
+    var op = model.opex || {};
+    var opShock = 1 + sh(model, 'opexPct') / 100;
+    var lines = [];
+    if (op.mode === 'ratio') {
+      lines.push({ label: 'مصروفات تشغيلية (نسبة من الدخل الفعلي)', basis: 'pctEGI', input: op.ratio, amount: egi * pct(op.ratio, 0) * opShock });
+    } else {
+      (op.lines || []).forEach(function (l) {
+        var a = num(l.amount), amt = 0;
+        if (!isNum(a)) a = 0;
+        if (l.basis === 'pctEGI') amt = egi * a / 100;
+        else if (l.basis === 'pctPGI') amt = pgi * a / 100;
+        else if (l.basis === 'perM2') amt = a * gla * exf;
+        else amt = a * exf;
+        lines.push({ label: l.label, basis: l.basis || 'fixed', input: l.amount, amount: amt * opShock });
+      });
+    }
+    var opex = lines.reduce(function (s, l) { return s + l.amount; }, 0);
+    var noi = egi - opex;
+    return { rentRoll: rr, pgi: pgi, vacancyPct: vac, vacancyLoss: vacancyLoss, collectionPct: coll, collectionLoss: collectionLoss,
+      otherIncome: other, egi: egi, opexLines: lines, opex: opex, opexRatio: egi ? opex / egi : NaN, noiComputed: noi, noi: noi, gla: gla };
+  }
+
+  /** Year-1 NOI with optional professional override (scaled under shocks so sensitivity still works). */
+  function computeNOIFinal(model, rentAnalysis) {
+    var r = computeNOI(model, rentAnalysis);
+    var ov = (model.noiOverride || {});
+    var trace = [];
+    var fmt = function (x) { return fmtN(x); };
+    r.overridden = false;
+    if (ov.enabled && isNum(num(ov.value))) {
+      var unshocked = model.__shocks ? computeNOI(Object.assign({}, model, { __shocks: null }), rentAnalysis).noiComputed : r.noiComputed;
+      var ratio = unshocked ? r.noiComputed / unshocked : 1;
+      r.noi = num(ov.value) * ratio;
+      r.overrideFactor = r.noiComputed ? r.noi / r.noiComputed : 1;
+      r.overridden = true;
+    }
+    trace.push('إجمالي الدخل المحتمل PGI = ' + fmt(r.pgi));
+    trace.push('− خسارة الشغور (' + fmtP(r.vacancyPct) + ') = ' + fmt(r.vacancyLoss));
+    trace.push('− خسارة التحصيل (' + fmtP(r.collectionPct) + ' من الدخل بعد الشغور) = ' + fmt(r.collectionLoss));
+    trace.push('+ دخل آخر = ' + fmt(r.otherIncome));
+    trace.push('= الدخل الفعلي الإجمالي EGI = ' + fmt(r.egi));
+    trace.push('− المصروفات التشغيلية = ' + fmt(r.opex) + ' (' + fmtP(r.opexRatio) + ' من EGI)');
+    trace.push('= صافي الدخل التشغيلي المحسوب NOI = ' + fmt(r.noiComputed));
+    if (r.overridden) trace.push('↺ تجاوز مهني: NOI المعتمد = ' + fmt(r.noi) + (ov.note ? ' — المبرر: ' + ov.note : ''));
+    r.trace = trace;
+    r.warnings = [];
+    if (r.pgi <= 0) r.warnings.push('إجمالي الدخل المحتمل صفر أو غير مكتمل — راجع جدول الوحدات.');
+    if (isNum(r.opexRatio) && (r.opexRatio < 0.08 || r.opexRatio > 0.6)) r.warnings.push('نسبة المصروفات ' + fmtP(r.opexRatio) + ' خارج النطاق المعتاد (8%–60%).');
+    if (r.noi <= 0) r.warnings.push('صافي الدخل التشغيلي سالب أو صفر.');
+    if (r.overridden && !ov.note) r.warnings.push('تم تجاوز NOI دون تسجيل مبرر.');
+    return r;
+  }
+
+  // ---------------------------------------------------------------- cap rate
+
+  function mortgageConstant(ratePct, years, perYear) {
+    var i = num(ratePct) / 100 / (perYear || 12), n = num(years) * (perYear || 12);
+    if (!isNum(i) || !isNum(n) || n <= 0) return NaN;
+    if (i === 0) return 1 / num(years);
+    return (i / (1 - Math.pow(1 + i, -n))) * (perYear || 12);
+  }
+
+  function computeCapRate(model) {
+    var c = model.cap || {};
+    var methods = {};
+    var comps = analyzeEvidence(normalizeCapComps(c.rows), evidenceOpts(c));
+    methods.comps = { label: 'مقارنات السوق (المعدل الضمني)', value: comps.indicated, low: comps.low, high: comps.high, detail: comps };
+
+    var b = c.band || {};
+    var ltv = pct(b.ltv), mc = mortgageConstant(b.rate, b.years, 12), edr = pct(b.equityRate);
+    var bandCap = ltv * mc + (1 - ltv) * edr;
+    methods.band = { label: 'النطاق الاستثماري Band of Investment', value: bandCap * 100, mc: mc, ltv: ltv, edr: edr };
+
+    var bu = c.buildup || {};
+    var y = numOr(bu.riskFree, NaN);
+    (bu.premiums || []).forEach(function (p) { var v = num(p.value); if (isNum(v)) y += v; });
+    var g = numOr(bu.growth, 0);
+    methods.buildup = { label: 'البناء التراكمي (معدل الخصم − النمو)', value: y - g, discount: y, growth: g };
+
+    methods.survey = { label: 'تقارير/مسوح السوق', value: num((c.survey || {}).value), low: num((c.survey || {}).low), high: num((c.survey || {}).high), source: (c.survey || {}).source };
+
+    var sel = c.selection || 'comps';
+    var selected, basisText;
+    if (sel === 'weighted') {
+      var w = c.weights || {}, tw = 0, acc = 0;
+      ['comps', 'band', 'buildup', 'survey'].forEach(function (k) {
+        var wk = numOr(w[k], 0);
+        if (wk > 0 && isNum(methods[k].value)) { tw += wk; acc += wk * methods[k].value; }
+      });
+      selected = tw ? acc / tw : NaN;
+      basisText = 'متوسط مرجح للطرق حسب الأوزان المحددة';
+    } else if (sel === 'manual') {
+      selected = num(c.manual);
+      basisText = 'معدل محدد مهنياً';
+    } else {
+      selected = methods[sel] ? methods[sel].value : NaN;
+      basisText = methods[sel] ? methods[sel].label : '';
+    }
+    var bpsShock = sh(model, 'capBps') / 100;
+    var baseSelected = selected;
+    selected = selected + bpsShock;
+
+    var low, high;
+    var spread = numOr(c.rangeBps, 50) / 100;
+    if (c.rangeMode === 'evidence' && sel === 'comps' && isNum(comps.low)) { low = comps.low + bpsShock; high = comps.high + bpsShock; }
+    else if (c.rangeMode === 'manual' && isNum(num(c.rangeLow)) && isNum(num(c.rangeHigh))) { low = num(c.rangeLow) + bpsShock; high = num(c.rangeHigh) + bpsShock; }
+    else { low = selected - spread; high = selected + spread; }
+
+    var warnings = comps.warnings.map(function (w) { return 'معدل الرسملة: ' + w; });
+    if (!isNum(selected) || selected <= 0) warnings.push('معدل الرسملة المختار غير صالح.');
+    if (sel === 'manual' && !c.note) warnings.push('معدل الرسملة محدد يدوياً دون مبرر مسجل.');
+    var vals = ['comps', 'band', 'buildup', 'survey'].map(function (k) { return methods[k].value; }).filter(isNum);
+    if (vals.length >= 2) {
+      var spreadAll = Math.max.apply(null, vals) - Math.min.apply(null, vals);
+      if (spreadAll > 1.5) warnings.push('فجوة ' + spreadAll.toFixed(2) + ' نقطة مئوية بين طرق اشتقاق معدل الرسملة — وضّح سبب الترجيح.');
+    }
+    return { methods: methods, selection: sel, selected: selected, baseSelected: baseSelected, low: low, high: high, basisText: basisText, warnings: warnings };
+  }
+
+  // ------------------------------------------------------ direct capitalisation
+
+  function computeDirectCap(model, noiRes, capRes) {
+    var d = model.direct || {};
+    var cs = model.case || {};
+    var cap = capRes.selected / 100;
+    var adjustments = (d.adjustments || []).map(function (a) { return { label: a.label, amount: numOr(a.amount, 0) }; });
+    var adjSum = adjustments.reduce(function (s, a) { return s + a.amount; }, 0);
+    var raw = noiRes.noi / cap;
+    var value = raw + adjSum;
+    var low = noiRes.noi / (capRes.high / 100) + adjSum;
+    var high = noiRes.noi / (capRes.low / 100) + adjSum;
+    var rounding = cs.rounding;
+    var trace = [
+      'القيمة = NOI ÷ معدل الرسملة = ' + fmtN(noiRes.noi) + ' ÷ ' + fmtP(cap) + ' = ' + fmtN(raw),
+      adjSum ? 'تعديلات بعد الرسملة (مصروفات رأسمالية/تأجير/أراضٍ زائدة) = ' + fmtN(adjSum) : 'لا توجد تعديلات بعد الرسملة',
+      'القيمة قبل التقريب = ' + fmtN(value) + ' ← بعد التقريب = ' + fmtN(roundTo(value, rounding)),
+      'النطاق عند معدل ' + fmtP(capRes.high / 100) + ' – ' + fmtP(capRes.low / 100) + ': ' + fmtN(roundTo(low, rounding)) + ' – ' + fmtN(roundTo(high, rounding))
+    ];
+    return { raw: raw, adjustments: adjustments, adjSum: adjSum, value: value, rounded: roundTo(value, rounding),
+      low: low, high: high, perM2: noiRes.gla ? value / noiRes.gla : NaN, multiplier: noiRes.egi ? value / noiRes.egi : NaN, trace: trace,
+      valid: isNum(value) && cap > 0 };
+  }
+
+  // --------------------------------------------------------------------- DCF
+
+  function computeDCF(model, rentAnalysis, noiRes, capRes, opts) {
+    opts = opts || {};
+    var d = model.dcf || {};
+    var cs = model.case || {};
+    var n = clamp(Math.round(numOr(d.years, 10)), 1, 30);
+    var gShock = sh(model, 'growthPts'), eShock = sh(model, 'expenseGrowthPts');
+    var rentG = series(d.rentGrowth, n + 1, 0).map(function (x) { return x + gShock; });
+    var expG = series(d.expenseGrowth, n + 1, 0).map(function (x) { return x + eShock; });
+    var baseVac = pct((model.income || {}).vacancyPct, 0) * 100;
+    var vacList = series(d.vacancy, n + 1, baseVac);
+    var capexPct = pct(d.capexPct, 0);
+    var capexSched = schedule(d.capexSchedule, n + 1);
+    var r = pct(d.discountRate) + sh(model, 'discountBps') / 10000;
+    var exitSel = String(d.exitCap || '').trim() ? num(d.exitCap) : capRes.baseSelected + numOr(d.exitSpreadBps, 25) / 100;
+    var exitCap = exitSel / 100 + sh(model, 'exitCapBps') / 10000;
+    var sell = pct(d.sellingCostPct, 0);
+    var mid = d.timing === 'mid';
+    var overrideFactor = noiRes.overridden ? noiRes.overrideFactor : 1;
+
+    var rows = [];
+    var revF = 1, expF = 1;
+    for (var t = 1; t <= n + 1; t++) {
+      if (t > 1) { revF *= 1 + rentG[t - 2] / 100; expF *= 1 + expG[t - 2] / 100; }
+      var y = computeNOI(model, rentAnalysis, { revenue: revF, expense: expF, vacancyPct: vacList[t - 1] / 100, year: t });
+      var noi = y.noiComputed * overrideFactor;
+      var capex = y.egi * capexPct + capexSched[t - 1];
+      var cf = noi - capex;
+      var df = 1 / Math.pow(1 + r, t - (mid ? 0.5 : 0));
+      rows.push({ year: t, pgi: y.pgi, vacancyPct: y.vacancyPct, vacancyLoss: y.vacancyLoss + y.collectionLoss, other: y.otherIncome, egi: y.egi, opex: y.opex,
+        noiComputed: y.noiComputed, overrideAdj: noi - y.noiComputed, noi: noi, capex: capex, cf: cf, df: df, pv: cf * df });
+    }
+    var hold = rows.slice(0, n);
+    var exitNOI = d.exitBasis === 'final' ? rows[n - 1].noi : rows[n].noi;
+    var gross = exitNOI / exitCap;
+    var sellCost = gross * sell;
+    var net = gross - sellCost;
+    var dfN = 1 / Math.pow(1 + r, n);
+    var pvRev = net * dfN;
+    var pvCF = hold.reduce(function (s, x) { return s + x.pv; }, 0);
+    var value = pvCF + pvRev;
+    var res = { years: n, rows: hold, forward: rows[n], discountRate: r, exitCap: exitCap, exitNOI: exitNOI, gross: gross, sellCost: sellCost,
+      net: net, dfN: dfN, pvRev: pvRev, pvCF: pvCF, value: value, rounded: roundTo(value, cs.rounding),
+      goingIn: value ? rows[0].noi / value : NaN, reversionShare: value ? pvRev / value : NaN, valid: isNum(value) && r > 0 && exitCap > 0 };
+    // Implied IRR check (should equal r); plus NOI CAGR
+    res.noiCagr = rows[0].noi > 0 && rows[n - 1].noi > 0 && n > 1 ? Math.pow(rows[n - 1].noi / rows[0].noi, 1 / (n - 1)) - 1 : NaN;
+    res.trace = [
+      'فترة الاحتفاظ ' + n + ' سنوات، التدفقات ' + (mid ? 'منتصف السنة' : 'نهاية السنة') + '، معدل الخصم ' + fmtP(r),
+      'مجموع القيمة الحالية للتدفقات = ' + fmtN(pvCF),
+      'قيمة التخارج = NOI ' + (d.exitBasis === 'final' ? 'السنة ' + n : 'السنة ' + (n + 1)) + ' ' + fmtN(exitNOI) + ' ÷ ' + fmtP(exitCap) + ' = ' + fmtN(gross),
+      '− تكاليف البيع (' + fmtP(sell) + ') = ' + fmtN(sellCost) + ' ← صافي التخارج ' + fmtN(net),
+      'القيمة الحالية للتخارج = ' + fmtN(net) + ' × ' + dfN.toFixed(4) + ' = ' + fmtN(pvRev),
+      'القيمة = ' + fmtN(pvCF) + ' + ' + fmtN(pvRev) + ' = ' + fmtN(value)
+    ];
+    res.warnings = [];
+    if (!(r > 0)) res.warnings.push('معدل الخصم غير مدخل.');
+    if (exitCap * 100 < capRes.baseSelected) res.warnings.push('معدل الرسملة التخارجي أقل من معدل الدخول — افتراض متفائل يحتاج تبريراً.');
+    if (res.reversionShare > 0.7) res.warnings.push('قيمة التخارج تمثل ' + fmtP(res.reversionShare) + ' من القيمة — النتيجة حساسة جداً لمعدل التخارج.');
+    var avgG = rentG.slice(0, n).reduce(function (a, b) { return a + b; }, 0) / n / 100;
+    if (r - avgG < 0.02) res.warnings.push('الفرق بين معدل الخصم ومتوسط النمو ضئيل (' + fmtP(r - avgG) + ').');
+    if (!opts.skipRange) {
+      var rb = numOr(d.rangeBps, 50);
+      var lo = computeDCF(withShocks(model, { discountBps: rb, exitCapBps: rb }), rentAnalysis, noiRes, capRes, { skipRange: true });
+      var hi = computeDCF(withShocks(model, { discountBps: -rb, exitCapBps: -rb }), rentAnalysis, noiRes, capRes, { skipRange: true });
+      res.low = lo.value; res.high = hi.value; res.rangeBps = rb;
+    }
+    return res;
+  }
+
+  // ------------------------------------------------------ sales comparison
+
+  function computeSales(model) {
+    var s = model.sales || {};
+    var cs = model.case || {};
+    var a = analyzeEvidence(normalizeSaleComps(s.rows), evidenceOpts(s));
+    var shock = 1 + sh(model, 'salePct') / 100;
+    var area = String(s.subjectArea || '').trim() ? num(s.subjectArea) : num(cs.gla);
+    var rate = a.indicated * shock;
+    var value = rate * area;
+    return { analysis: a, area: area, rate: rate, value: value, rounded: roundTo(value, cs.rounding), low: a.low * shock * area, high: a.high * shock * area,
+      valid: isNum(value) && value > 0,
+      trace: ['سعر المتر المرجح = ' + fmtN(rate) + ' × المساحة ' + fmtN(area) + ' م² = ' + fmtN(value)] };
+  }
+
+  // -------------------------------------------------------- reconciliation
+
+  function reconcile(model, parts) {
+    var rc = model.recon || {};
+    var cs = model.case || {};
+    var w = rc.weights || {};
+    var list = [
+      { key: 'direct', label: 'الرسملة المباشرة', r: parts.direct },
+      { key: 'dcf', label: 'التدفقات النقدية المخصومة DCF', r: parts.dcf },
+      { key: 'sales', label: 'المقارنات البيعية', r: parts.sales }
+    ];
+    var tw = 0;
+    list.forEach(function (x) { x.weight = numOr(w[x.key], 0); x.ok = x.r && x.r.valid && x.weight > 0; if (x.ok) tw += x.weight; });
+    var value = 0, low = 0, high = 0;
+    list.forEach(function (x) {
+      x.share = x.ok ? x.weight / tw : 0;
+      if (x.ok) { value += x.share * x.r.value; low += x.share * (isNum(x.r.low) ? x.r.low : x.r.value); high += x.share * (isNum(x.r.high) ? x.r.high : x.r.value); }
+    });
+    if (!tw) { value = NaN; low = NaN; high = NaN; }
+    var overridden = rc.overrideEnabled && isNum(num(rc.overrideValue));
+    var finalV = overridden ? num(rc.overrideValue) : value;
+    var warnings = [];
+    var vals = list.filter(function (x) { return x.r && x.r.valid && x.weight > 0; }).map(function (x) { return x.r.value; });
+    if (vals.length >= 2) {
+      var spread = (Math.max.apply(null, vals) - Math.min.apply(null, vals)) / value;
+      if (spread > 0.15) warnings.push('الفرق بين نتائج الطرق ' + fmtP(spread) + ' — راجع الافتراضات قبل الترجيح.');
+    }
+    if (overridden && !rc.overrideNote) warnings.push('تم تجاوز القيمة النهائية دون مبرر مسجل.');
+    return { approaches: list, weighted: value, value: finalV, rounded: roundTo(finalV, cs.rounding), low: roundTo(low, cs.rounding), high: roundTo(high, cs.rounding),
+      overridden: overridden, warnings: warnings, perM2: num(cs.gla) ? finalV / num(cs.gla) : NaN };
+  }
+
+  // ------------------------------------------------------------- run all
+
+  function runAll(model, opts) {
+    opts = opts || {};
+    var rent = analyzeRentComps(model);
+    var noi = computeNOIFinal(model, rent);
+    var cap = computeCapRate(model);
+    var direct = computeDirectCap(model, noi, cap);
+    var dcf = computeDCF(model, rent, noi, cap, { skipRange: opts.skipRange });
+    var sales = computeSales(model);
+    var recon = reconcile(model, { direct: direct, dcf: dcf, sales: sales });
+    var warnings = [].concat(
+      rent.categories.length
+        ? [].concat.apply([], rent.categories.map(function (c) { return rent.byCategory[c].warnings.map(function (w) { return 'إيجارات «' + c + '»: ' + w; }); }))
+        : rent.all.warnings.map(function (w) { return 'الإيجارات المقارنة: ' + w; }),
+      noi.warnings, cap.warnings, dcf.warnings,
+      sales.analysis.rows.length ? sales.analysis.warnings.map(function (w) { return 'المقارنات البيعية: ' + w; }) : [],
+      recon.warnings);
+    return { rent: rent, noi: noi, cap: cap, direct: direct, dcf: dcf, sales: sales, recon: recon, warnings: warnings };
+  }
+
+  var METRICS = {
+    direct: { label: 'قيمة الرسملة المباشرة', get: function (r) { return r.direct.value; } },
+    dcf: { label: 'قيمة DCF', get: function (r) { return r.dcf.value; } },
+    sales: { label: 'قيمة المقارنات البيعية', get: function (r) { return r.sales.value; } },
+    final: { label: 'القيمة النهائية المرجحة', get: function (r) { return r.recon.weighted; } },
+    noi: { label: 'صافي الدخل التشغيلي', get: function (r) { return r.noi.noi; } }
+  };
+
+  function metricOf(model, metric, shocks) {
+    var r = runAll(withShocks(model, shocks), { skipRange: true });
+    return METRICS[metric].get(r);
+  }
+
+  /** Tornado: each variable at −step and +step. */
+  function tornado(model, metric, steps) {
+    var base = metricOf(model, metric, {});
+    var rows = Object.keys(SHOCKS).map(function (k) {
+      var st = steps && isNum(num(steps[k])) ? num(steps[k]) : SHOCKS[k].step;
+      var down = {}, up = {}; down[k] = -st; up[k] = st;
+      var vDown = metricOf(model, metric, down), vUp = metricOf(model, metric, up);
+      return { key: k, label: SHOCKS[k].label, unit: SHOCKS[k].unit, step: st, down: vDown, up: vUp,
+        dDown: (vDown - base) / base, dUp: (vUp - base) / base, swing: Math.abs(vUp - vDown) };
+    });
+    rows.sort(function (a, b) { return (b.swing || 0) - (a.swing || 0); });
+    return { base: base, rows: rows };
+  }
+
+  /** Two-way grid of a metric. */
+  function grid(model, metric, rowVar, rowSteps, colVar, colSteps) {
+    var cells = rowSteps.map(function (rs) {
+      return colSteps.map(function (c) {
+        var s = {}; s[rowVar] = rs; s[colVar] = (s[colVar] || 0) + c;
+        return metricOf(model, metric, s);
+      });
+    });
+    return { rowVar: rowVar, colVar: colVar, rowSteps: rowSteps, colSteps: colSteps, cells: cells, base: metricOf(model, metric, {}) };
+  }
+
+  function scenarios(model) {
+    var list = (model.scenarios || []).map(function (sc) {
+      var r = runAll(withShocks(model, sc.shocks || {}), { skipRange: true });
+      return { name: sc.name, prob: numOr(sc.prob, 0), shocks: sc.shocks, noi: r.noi.noi, cap: r.cap.selected, direct: r.direct.value, dcf: r.dcf.value, sales: r.sales.value, final: r.recon.weighted };
+    });
+    var tp = list.reduce(function (s, x) { return s + x.prob; }, 0);
+    var weighted = tp ? list.reduce(function (s, x) { return s + x.prob * (isNum(x.final) ? x.final : 0); }, 0) / tp : NaN;
+    return { list: list, totalProb: tp, weighted: weighted };
+  }
+
+  /** Solve a single shock so the metric hits a target (bisection). */
+  function breakEven(model, metric, key, target, lo, hi) {
+    var f = function (x) { var s = {}; s[key] = x; return metricOf(model, metric, s) - target; };
+    var a = lo, b = hi, fa = f(a), fb = f(b);
+    if (!isNum(fa) || !isNum(fb) || fa * fb > 0) return NaN;
+    for (var i = 0; i < 60; i++) {
+      var m = (a + b) / 2, fm = f(m);
+      if (Math.abs(fm) < 1e-6 * Math.abs(target)) return m;
+      if (fa * fm <= 0) { b = m; fb = fm; } else { a = m; fa = fm; }
+    }
+    return (a + b) / 2;
+  }
+
+  // ----------------------------------------------------------- paste import
+
+  /** Parse pasted Excel/CSV text into a 2D array. */
+  function parseTable(text) {
+    var lines = String(text || '').replace(/\r/g, '').split('\n').filter(function (l) { return l.trim(); });
+    if (!lines.length) return [];
+    var first = lines[0];
+    var delim = first.indexOf('\t') >= 0 ? '\t' : (first.split(';').length > first.split(',').length ? ';' : ',');
+    return lines.map(function (l) {
+      if (delim !== ',') return l.split(delim).map(function (c) { return c.trim(); });
+      var out = [], cur = '', q = false;
+      for (var i = 0; i < l.length; i++) {
+        var ch = l[i];
+        if (ch === '"') q = !q;
+        else if (ch === ',' && !q) { out.push(cur.trim()); cur = ''; }
+        else cur += ch;
+      }
+      out.push(cur.trim());
+      return out;
+    });
+  }
+
+  var COLUMN_SYNONYMS = {
+    label: ['الوصف', 'المقارن', 'العقار', 'الاسم', 'الموقع', 'label', 'name', 'property', 'comp', 'description', 'الحي'],
+    category: ['الفئة', 'النوع', 'نوع الوحدة', 'category', 'type', 'use', 'الاستخدام'],
+    rent: ['الإيجار', 'الايجار', 'rent', 'الإيجار السنوي', 'قيمة الإيجار'],
+    price: ['السعر', 'القيمة', 'سعر البيع', 'price', 'sale price', 'value', 'المبلغ'],
+    area: ['المساحة', 'area', 'size', 'م2', 'م²', 'sqm', 'gla'],
+    noi: ['صافي الدخل', 'noi', 'net income', 'صافي الدخل التشغيلي'],
+    capRate: ['معدل الرسملة', 'cap', 'cap rate', 'العائد'],
+    date: ['التاريخ', 'date', 'تاريخ الصفقة'],
+    period: ['الفترة', 'period'],
+    weight: ['الوزن', 'weight']
+  };
+
+  function mapColumns(header) {
+    var map = {};
+    header.forEach(function (h, i) {
+      var k = normKey(h);
+      Object.keys(COLUMN_SYNONYMS).forEach(function (field) {
+        if (map[field] !== undefined) return;
+        if (COLUMN_SYNONYMS[field].some(function (s) { return k === normKey(s) || k.indexOf(normKey(s)) >= 0; })) map[field] = i;
+      });
+    });
+    return map;
+  }
+
+  /** Convert pasted text to comp rows for kind: rent | sales | cap. */
+  function importRows(text, kind) {
+    var t = parseTable(text);
+    if (!t.length) return { rows: [], mapped: {}, skipped: 0 };
+    var hasHeader = t[0].some(function (c) { return !isNum(num(c)) && c !== ''; }) && t.length > 1;
+    var map = hasHeader ? mapColumns(t[0]) : {};
+    if (!hasHeader || Object.keys(map).length < 2) {
+      // positional fallback
+      map = kind === 'cap' ? { label: 0, price: 1, noi: 2, capRate: 3 } : kind === 'sales' ? { label: 0, price: 1, area: 2 } : { label: 0, category: 1, rent: 2, area: 3 };
+      if (!hasHeader) t.unshift([]);
+    }
+    var body = t.slice(1), skipped = 0;
+    var rows = [];
+    body.forEach(function (c) {
+      var g = function (f) { return map[f] !== undefined ? (c[map[f]] || '') : ''; };
+      var r = { label: g('label') || ('مقارن ' + (rows.length + 1)), include: true, weight: g('weight') || '1', adj: {} };
+      if (g('date')) r.date = g('date');
+      if (kind === 'rent') {
+        r.category = g('category'); r.rent = g('rent'); r.area = g('area');
+        r.period = /شهر|month/i.test(g('period')) ? 'monthly' : 'annual'; r.basis = 'total';
+        if (!isNum(num(r.rent))) { skipped++; return; }
+      } else if (kind === 'sales') {
+        r.price = g('price'); r.area = g('area'); r.basis = 'total';
+        if (!isNum(num(r.price))) { skipped++; return; }
+      } else {
+        r.price = g('price'); r.noi = g('noi'); r.capRate = g('capRate'); r.adjPts = '0';
+        if (!isNum(num(r.price)) && !isNum(num(r.capRate))) { skipped++; return; }
+      }
+      rows.push(r);
+    });
+    return { rows: rows, mapped: map, skipped: skipped };
+  }
+
+  // -------------------------------------------------------------- formatting
+
+  function fmtN(x, d) {
+    if (!isNum(x)) return '—';
+    return x.toLocaleString('en-US', { maximumFractionDigits: d === undefined ? 0 : d, minimumFractionDigits: d === undefined ? 0 : d });
+  }
+  function fmtP(x, d) { return isNum(x) ? (x * 100).toFixed(d === undefined ? 2 : d) + '%' : '—'; }
+
+  return {
+    num: num, pct: pct, numOr: numOr, isNum: isNum, series: series, schedule: schedule, roundTo: roundTo,
+    describe: describe, outliers: outliers, analyzeEvidence: analyzeEvidence,
+    normalizeRentComps: normalizeRentComps, normalizeSaleComps: normalizeSaleComps, normalizeCapComps: normalizeCapComps,
+    analyzeRentComps: analyzeRentComps, computeRentRoll: computeRentRoll, computeNOI: computeNOI, computeNOIFinal: computeNOIFinal,
+    mortgageConstant: mortgageConstant, computeCapRate: computeCapRate, computeDirectCap: computeDirectCap, computeDCF: computeDCF,
+    computeSales: computeSales, reconcile: reconcile, runAll: runAll, withShocks: withShocks,
+    SHOCKS: SHOCKS, METRICS: METRICS, ADJ_KEYS: ADJ_KEYS, tornado: tornado, grid: grid, scenarios: scenarios, breakEven: breakEven,
+    parseTable: parseTable, importRows: importRows, mapColumns: mapColumns, fmtN: fmtN, fmtP: fmtP
+  };
+});
+
+;
+/*
+ * حالة نموذجية للتجربة — Sample case (illustrative figures, not market data).
+ * Also defines the empty template used by "حالة جديدة".
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.ValSample = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  function adj(o) { return Object.assign({ time: '', location: '', size: '', condition: '', age: '', other: '' }, o || {}); }
+
+  function sample() {
+    return {
+      version: 1,
+      case: {
+        name: 'مبنى تجاري مكتبي — حالة نموذجية',
+        client: 'عميل تجريبي',
+        purpose: 'التقييم لأغراض التمويل',
+        basis: 'القيمة السوقية',
+        propertyType: 'تجاري مكتبي (معارض + مكاتب)',
+        location: 'الرياض — حي الملقا، طريق أنس بن مالك',
+        deed: '',
+        valuationDate: '2026-09-25',
+        inspectionDate: '2026-09-20',
+        landArea: '2500',
+        gla: '3780',
+        currency: 'ر.س',
+        rounding: '10000',
+        appraiser: '',
+        notes: 'الأرقام في هذه الحالة توضيحية لتجربة الأداة وليست بيانات سوق فعلية.'
+      },
+      rentComps: {
+        pick: 'median', outlierMethod: 'iqr', outlierK: '1.5', excludeOutliers: true, range: 'auto', manual: '', overrides: {},
+        rows: [
+          { label: 'معرض — طريق أنس بن مالك', category: 'معارض', rent: '170000', area: '160', period: 'annual', basis: 'total', date: '2026-06', include: true, weight: '1', adj: adj({ location: '0', size: '-2' }) },
+          { label: 'معرض — شارع الأمير سلطان', category: 'معارض', rent: '9,500', area: '100', period: 'monthly', basis: 'total', date: '2026-03', include: true, weight: '1', adj: adj({ location: '-5', time: '2' }) },
+          { label: 'معرض — حي الياسمين', category: 'معارض', rent: '١٨٠٬٠٠٠', area: '170', period: 'annual', basis: 'total', date: '2026-07', include: true, weight: '1', adj: adj({ location: '3' }) },
+          { label: 'معرض — طريق الملك فهد', category: 'معارض', rent: '1150', area: '', period: 'annual', basis: 'perM2', date: '2026-05', include: true, weight: '1', adj: adj({ location: '-8' }) },
+          { label: 'معرض — حي النرجس (زاوية)', category: 'معارض', rent: '310000', area: '150', period: 'annual', basis: 'total', date: '2026-08', include: true, weight: '1', adj: adj() },
+          { label: 'مكتب — برج الملقا', category: 'مكاتب', rent: '84000', area: '125', period: 'annual', basis: 'total', date: '2026-04', include: true, weight: '1', adj: adj({ condition: '-3' }) },
+          { label: 'مكتب — مجمع أعمال الياسمين', category: 'مكاتب', rent: '5,200', area: '100', period: 'monthly', basis: 'total', date: '2026-02', include: true, weight: '1', adj: adj({ time: '2', age: '3' }) },
+          { label: 'مكتب — طريق الملك عبدالعزيز', category: 'مكاتب', rent: '700', area: '', period: 'annual', basis: 'perM2', date: '2026-06', include: true, weight: '1', adj: adj({ location: '-4' }) },
+          { label: 'مكتب — حي الصحافة', category: 'مكاتب', rent: '66000', area: '110', period: 'annual', basis: 'total', date: '2026-08', include: true, weight: '1', adj: adj({ location: '2' }) }
+        ]
+      },
+      income: {
+        mode: 'rentroll', pgiDirect: '', rentBasis: 'blended', contractPeriod: 'annual',
+        vacancyPct: '7', collectionLossPct: '2', otherIncome: '60000',
+        units: [
+          { label: 'معارض الدور الأرضي', category: 'معارض', units: '6', area: '150', occupied: '6', contractRent: '150000', leaseYears: '2', marketSource: 'comps', marketRate: '', basis: 'default' },
+          { label: 'مكاتب الأدوار العلوية', category: 'مكاتب', units: '24', area: '120', occupied: '20', contractRent: '72000', leaseYears: '1', marketSource: 'comps', marketRate: '', basis: 'default' }
+        ]
+      },
+      opex: {
+        mode: 'itemized', ratio: '20',
+        lines: [
+          { label: 'إدارة العقار', basis: 'pctEGI', amount: '5' },
+          { label: 'صيانة وإصلاحات', basis: 'perM2', amount: '35' },
+          { label: 'تأمين', basis: 'fixed', amount: '25000' },
+          { label: 'خدمات المناطق المشتركة (كهرباء/مياه)', basis: 'fixed', amount: '90000' },
+          { label: 'حراسة ونظافة', basis: 'fixed', amount: '120000' },
+          { label: 'احتياطي الإحلال', basis: 'pctEGI', amount: '2' }
+        ]
+      },
+      noiOverride: { enabled: false, value: '', note: '' },
+      cap: {
+        selection: 'comps', manual: '', note: '',
+        pick: 'median', outlierMethod: 'iqr', outlierK: '1.5', excludeOutliers: true, range: 'auto',
+        rangeMode: 'spread', rangeBps: '50', rangeLow: '', rangeHigh: '',
+        rows: [
+          { label: 'مبنى مكتبي — حي العقيق', price: '31,500,000', noi: '2,330,000', capRate: '', date: '2026-05', include: true, weight: '1', adjPts: '0' },
+          { label: 'مجمع تجاري — حي الياسمين', price: '24,000,000', noi: '1,850,000', capRate: '', date: '2026-02', include: true, weight: '1', adjPts: '-0.25' },
+          { label: 'مبنى معارض ومكاتب — الملقا', price: '38,000,000', noi: '2,810,000', capRate: '', date: '2026-07', include: true, weight: '2', adjPts: '0' },
+          { label: 'مبنى مكتبي — طريق الملك فهد', price: '', noi: '', capRate: '7.1', date: '2026-01', include: true, weight: '1', adjPts: '0.25' },
+          { label: 'مبنى متعدد الاستخدام — النرجس', price: '19,800,000', noi: '1,540,000', capRate: '', date: '2026-06', include: true, weight: '1', adjPts: '0' },
+          { label: 'مبنى قديم — حي السليمانية', price: '12,000,000', noi: '1,290,000', capRate: '', date: '2025-11', include: true, weight: '1', adjPts: '0' }
+        ],
+        band: { ltv: '50', rate: '6.25', years: '20', equityRate: '7' },
+        buildup: { riskFree: '4.75', growth: '2', premiums: [
+          { label: 'علاوة مخاطر العقار', value: '2.5' },
+          { label: 'علاوة السيولة', value: '1' },
+          { label: 'علاوة الإدارة والتشغيل', value: '0.75' },
+          { label: 'علاوة الموقع/المستأجرين', value: '0.5' }
+        ] },
+        survey: { value: '7.5', low: '7', high: '8', source: 'تقرير سوق المكاتب — الربع الثاني 2026 (أدخل المصدر الفعلي)' },
+        weights: { comps: '60', band: '10', buildup: '10', survey: '20' }
+      },
+      direct: { adjustments: [
+        { label: 'تكاليف تأجير الوحدات الشاغرة (عمولة + فترة مجانية)', amount: '-120000' }
+      ] },
+      dcf: {
+        years: '10', rentGrowth: '0, 2.5', expenseGrowth: '2.5', vacancy: '', capexPct: '0', capexSchedule: '5:450000',
+        discountRate: '9.75', exitCap: '', exitSpreadBps: '25', sellingCostPct: '2.5', exitBasis: 'next', timing: 'end', rangeBps: '50'
+      },
+      sales: {
+        subjectArea: '', pick: 'median', outlierMethod: 'iqr', outlierK: '1.5', excludeOutliers: true, range: 'auto', manual: '',
+        rows: [
+          { label: 'مبنى مكتبي — حي العقيق', price: '31,500,000', area: '4500', basis: 'total', date: '2026-05', include: true, weight: '1', adj: adj({ location: '0', age: '2' }) },
+          { label: 'مجمع تجاري — حي الياسمين', price: '24,000,000', area: '3600', basis: 'total', date: '2026-02', include: true, weight: '1', adj: adj({ time: '2', location: '3' }) },
+          { label: 'مبنى معارض ومكاتب — الملقا', price: '38,000,000', area: '5400', basis: 'total', date: '2026-07', include: true, weight: '1', adj: adj({ size: '2' }) },
+          { label: 'مبنى متعدد الاستخدام — النرجس', price: '19,800,000', area: '2850', basis: 'total', date: '2026-06', include: true, weight: '1', adj: adj({ condition: '-2' }) },
+          { label: 'مبنى مكتبي فاخر — الملك فهد', price: '52,000,000', area: '4300', basis: 'total', date: '2026-04', include: true, weight: '1', adj: adj({ location: '-10' }) }
+        ]
+      },
+      recon: { weights: { direct: '50', dcf: '30', sales: '20' }, overrideEnabled: false, overrideValue: '', overrideNote: '', rationale: 'رُجحت طريقة الرسملة المباشرة لتوفر أدلة معدلات رسملة من صفقات مماثلة في نفس المنطقة، مع استخدام DCF لاختبار أثر فرق الإيجار التعاقدي عن السوقي، والمقارنات البيعية كطريقة داعمة.' },
+      sens: { metric: 'final', steps: {}, gridMetric: 'direct', rowVar: 'capBps', colVar: 'rentPct', rowStep: '25', colStep: '5', gridSize: '2' },
+      scenarios: [
+        { name: 'متحفظ', prob: '25', shocks: { rentPct: '-7.5', vacancyPts: '3', opexPct: '5', capBps: '50', discountBps: '50', exitCapBps: '50', growthPts: '-1' } },
+        { name: 'أساسي', prob: '50', shocks: {} },
+        { name: 'متفائل', prob: '25', shocks: { rentPct: '5', vacancyPts: '-2', capBps: '-25', discountBps: '-25', exitCapBps: '-25', growthPts: '0.5' } }
+      ]
+    };
+  }
+
+  function empty() {
+    var m = sample();
+    m.case = { name: 'حالة جديدة', client: '', purpose: '', basis: 'القيمة السوقية', propertyType: '', location: '', deed: '', valuationDate: new Date().toISOString().slice(0, 10), inspectionDate: '', landArea: '', gla: '', currency: 'ر.س', rounding: '10000', appraiser: '', notes: '' };
+    m.rentComps.rows = []; m.rentComps.overrides = {};
+    m.income.units = [{ label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', marketSource: 'manual', marketRate: '', basis: 'default' }];
+    m.income.otherIncome = '0';
+    m.opex.lines.forEach(function (l) { if (l.basis === 'fixed' || l.basis === 'perM2') l.amount = ''; });
+    m.cap.rows = []; m.cap.survey = { value: '', low: '', high: '', source: '' }; m.cap.selection = 'manual'; m.cap.manual = '';
+    m.direct.adjustments = [];
+    m.dcf.capexSchedule = '';
+    m.sales.rows = [];
+    m.recon.rationale = '';
+    return m;
+  }
+
+  return { sample: sample, empty: empty, adj: adj };
+});
+
+;
+/* واجهة أداة التقييم — UI layer. All maths lives in engine.js. */
+(function () {
+  'use strict';
+  var E = window.ValEngine, S = window.ValSample;
+  var STORE_KEY = 'valuation-tool.case.v1';
+  var root = document.getElementById('app');
+  var inFrame = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+
+  var state = { model: load() || S.sample(), tab: 'case', ui: { modal: null, confirm: null, toast: '' } };
+  var hashTab = (location.hash || '').replace('#', '');
+  if (hashTab) state.tab = hashTab;
+
+  // ------------------------------------------------------------ utilities
+  function load() { try { var s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state.model)); } catch (e) { /* storage unavailable */ } }
+  function get(path) { return path.split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, state.model); }
+  function set(path, v) {
+    var ks = path.split('.'), o = state.model;
+    for (var i = 0; i < ks.length - 1; i++) {
+      if (o[ks[i]] == null) o[ks[i]] = /^\d+$/.test(ks[i + 1]) ? [] : {};
+      o = o[ks[i]];
+    }
+    o[ks[ks.length - 1]] = v;
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  var N = E.fmtN, P = E.fmtP, isNum = E.isNum;
+  function cur() { return (state.model.case && state.model.case.currency) || 'ر.س'; }
+  function M(x) { return isNum(x) ? '<bdi class="num">' + N(x) + '</bdi>' : '—'; }
+  function Pc(x, d) { return isNum(x) ? '<bdi class="num">' + x.toFixed(d === undefined ? 2 : d) + '%</bdi>' : '—'; }
+  function Pf(x, d) { return isNum(x) ? '<bdi class="num">' + P(x, d) + '</bdi>' : '—'; }
+  function idOf(path) { return 'f-' + path.replace(/[^\w؀-ۿ-]/g, '-'); }
+
+  function inp(path, o) {
+    o = o || {};
+    var v = get(path);
+    return '<input id="' + idOf(path) + '" data-path="' + esc(path) + '"' + (o.num ? ' class="num" inputmode="decimal" dir="ltr"' : '') +
+      (o.type ? ' type="' + o.type + '"' : '') + ' value="' + esc(v) + '" placeholder="' + esc(o.ph || '') + '" aria-label="' + esc(o.label || o.ph || path) + '"' + (o.list ? ' list="' + o.list + '"' : '') + '>';
+  }
+  function area(path, o) { o = o || {}; return '<textarea id="' + idOf(path) + '" data-path="' + esc(path) + '" placeholder="' + esc(o.ph || '') + '" aria-label="' + esc(o.label || path) + '">' + esc(get(path)) + '</textarea>'; }
+  function sel(path, opts, o) {
+    o = o || {};
+    var v = get(path);
+    return '<select id="' + idOf(path) + '" data-path="' + esc(path) + '" aria-label="' + esc(o.label || path) + '">' + opts.map(function (x) {
+      return '<option value="' + esc(x[0]) + '"' + (String(v) === String(x[0]) ? ' selected' : '') + '>' + esc(x[1]) + '</option>';
+    }).join('') + '</select>';
+  }
+  function chk(path, label) { return '<label class="chk"><input type="checkbox" id="' + idOf(path) + '" data-path="' + esc(path) + '"' + (get(path) ? ' checked' : '') + '> ' + label + '</label>'; }
+  function field(label, control, hint, cls) { return '<label class="field ' + (cls || '') + '"><span class="lbl">' + label + '</span>' + control + (hint ? '<small>' + hint + '</small>' : '') + '</label>'; }
+  function btn(action, label, attrs, cls) { return '<button type="button" class="btn ' + (cls || '') + '" data-action="' + action + '" ' + (attrs || '') + '>' + label + '</button>'; }
+  function chip(t, cls) { return '<span class="chip ' + (cls || 'muted') + '">' + t + '</span>'; }
+  function ltrNums(html) { return html.replace(/[-+]?\d[\d,]*(?:\.\d+)?%?/g, '<bdi dir="ltr">$&</bdi>'); }
+  function traceList(lines) { return '<ol class="trace">' + lines.map(function (l) { return '<li>' + ltrNums(esc(l)) + '</li>'; }).join('') + '</ol>'; }
+  function warnList(ws, okText) {
+    if (!ws.length) return okText ? '<ul class="warnings"><li class="ok">' + okText + '</li></ul>' : '';
+    return '<ul class="warnings">' + ws.map(function (w) { return '<li>' + ltrNums(esc(w)) + '</li>'; }).join('') + '</ul>';
+  }
+
+  var PICKS = [['median', 'الوسيط'], ['mean', 'المتوسط'], ['trimmed', 'المتوسط المقتطع'], ['weighted', 'المتوسط المرجح بالأوزان'], ['manual', 'قيمة يحددها المقيّم']];
+  var OUTM = [['iqr', 'المدى الربيعي IQR'], ['mad', 'الانحراف المطلق MAD'], ['zscore', 'الدرجة المعيارية Z'], ['none', 'بدون']];
+  var RANGES = [['auto', 'تلقائي'], ['iqr', 'الربيع الأول – الثالث'], ['minmax', 'الأدنى – الأعلى'], ['sd', 'المتوسط ± انحراف معياري']];
+  var ADJ_LABELS = { time: 'زمن', location: 'موقع', size: 'مساحة', condition: 'حالة', age: 'عمر', other: 'أخرى' };
+
+  var TPL = {
+    rentComp: function () { return { label: '', category: '', rent: '', area: '', period: 'annual', basis: 'total', date: '', include: true, weight: '1', adj: S.adj() }; },
+    unit: function () { return { label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', marketSource: 'comps', marketRate: '', basis: 'default' }; },
+    opexLine: function () { return { label: '', basis: 'fixed', amount: '' }; },
+    capComp: function () { return { label: '', price: '', noi: '', capRate: '', date: '', include: true, weight: '1', adjPts: '0' }; },
+    saleComp: function () { return { label: '', price: '', area: '', basis: 'total', date: '', include: true, weight: '1', adj: S.adj() }; },
+    premium: function () { return { label: '', value: '' }; },
+    adjustment: function () { return { label: '', amount: '' }; },
+    scenario: function () { return { name: 'سيناريو جديد', prob: '0', shocks: {} }; }
+  };
+
+  var TABS = [
+    ['case', 'بيانات الحالة'], ['rent', 'الإيجار السوقي'], ['noi', 'الدخل وNOI'], ['cap', 'معدل الرسملة'],
+    ['direct', 'الرسملة المباشرة'], ['dcf', 'التدفقات المخصومة'], ['sales', 'المقارنات البيعية'],
+    ['sens', 'الحساسية والسيناريوهات'], ['report', 'التسوية والتقرير']
+  ];
+
+  // --------------------------------------------------------------- shared
+  function editTable(listPath, cols, opts) {
+    opts = opts || {};
+    var rows = get(listPath) || [];
+    var head = '<thead><tr>' + cols.map(function (c) { return '<th class="' + (c.num ? 'num' : '') + '">' + c.h + '</th>'; }).join('') + '<th class="rowact"></th></tr></thead>';
+    var body = '<tbody>' + rows.map(function (r, i) {
+      var p = listPath + '.' + i;
+      return '<tr class="' + (opts.rowClass ? opts.rowClass(r, i) : '') + '">' + cols.map(function (c) {
+        return '<td class="' + (c.cls || '') + (c.num ? ' num' : '') + '">' + c.f(r, i, p) + '</td>';
+      }).join('') + '<td class="rowact">' + btn('delRow', 'حذف', 'data-list="' + listPath + '" data-i="' + i + '"', 'danger sm') + '</td></tr>';
+    }).join('') + (rows.length ? '' : '<tr><td colspan="' + (cols.length + 1) + '"><small>لا توجد صفوف بعد.</small></td></tr>') + '</tbody>';
+    return '<div class="scroll"><table class="grid" id="' + (opts.id || '') + '">' + head + body + (opts.foot || '') + '</table></div>';
+  }
+
+  function evidenceStatus(a) {
+    if (!a) return '';
+    var out = [];
+    if (!a.valid) out.push(chip(a.issues.join('، ') || 'غير صالح', 'bad'));
+    else if (!a.include) out.push(chip('مستبعد يدوياً'));
+    else if (a.outlier) out.push(chip(a.used ? 'شاذة — مستخدمة' : 'شاذة — مستبعدة', 'warn'));
+    else out.push(chip('مستخدم', 'good'));
+    if (a.duplicate) out.push(chip('مكرر محتمل', 'warn'));
+    return out.join(' ');
+  }
+  function rowClassFor(a) { return !a ? '' : !a.valid ? 'row-bad' : !a.include ? 'row-off' : a.outlier ? 'row-out' : ''; }
+
+  function adjCells(p) {
+    return '<div class="adjgrp">' + E.ADJ_KEYS.map(function (k) { return inp(p + '.adj.' + k, { num: 1, ph: ADJ_LABELS[k], label: 'تعديل ' + ADJ_LABELS[k] + ' %' }); }).join('') + '</div>';
+  }
+
+  function evidenceControls(base) {
+    var c = get(base) || {};
+    return '<div class="form">' +
+      field('طريقة استخلاص القيمة', sel(base + '.pick', PICKS)) +
+      (c.pick === 'manual' ? field('القيمة المعتمدة يدوياً', inp(base + '.manual', { num: 1 })) : '') +
+      field('كشف القيم الشاذة', sel(base + '.outlierMethod', OUTM)) +
+      field('معامل الحساسية k', inp(base + '.outlierK', { num: 1 }), 'IQR: 1.5 · MAD: 3.5 · Z: 2') +
+      field('نطاق الدليل', sel(base + '.range', RANGES)) +
+      '<div class="field"><span class="lbl">المعالجة</span>' + chk(base + '.excludeOutliers', 'استبعاد الشواذ تلقائياً') + '</div>' +
+      '</div>';
+  }
+
+  function statsBlock(a, fmt, unit) {
+    var s = a.stats;
+    var f = function (x) { return fmt(x); };
+    var items = [['العدد المستخدم', s.n, function (x) { return String(x); }], ['الأدنى', s.min], ['الربيع الأول', s.q1], ['الوسيط', s.median], ['المتوسط', s.mean],
+      ['المتوسط المقتطع', s.trimmed], ['المرجح', s.weighted], ['الربيع الثالث', s.q3], ['الأعلى', s.max], ['معامل الاختلاف', s.cv, function (x) { return P(x, 1); }]];
+    return '<div class="stats">' + items.map(function (it) {
+      return '<div class="stat"><span class="k">' + it[0] + '</span><span class="v">' + (it[2] ? (isNum(it[1]) ? it[2](it[1]) : '—') : f(it[1])) + '</span></div>';
+    }).join('') + '<div class="stat hl"><span class="k">القيمة المستخلصة' + (unit ? ' (' + unit + ')' : '') + '</span><span class="v">' + f(a.indicated) + '</span></div>' +
+      '<div class="stat hl"><span class="k">النطاق</span><span class="v">' + f(a.low) + ' – ' + f(a.high) + '</span></div></div>';
+  }
+
+  /** Number line of evidence values with indicated marker and range band. */
+  function dotPlot(rows, indicated, low, high, fmt) {
+    var vals = rows.filter(function (r) { return r.valid && isNum(r.value); }).map(function (r) { return r.value; });
+    if (!vals.length) return '';
+    var lo = Math.min.apply(null, vals.concat(isNum(low) ? [low] : [])), hi = Math.max.apply(null, vals.concat(isNum(high) ? [high] : []));
+    var pad = (hi - lo) * 0.06 || Math.abs(hi) * 0.05 || 1; lo -= pad; hi += pad;
+    var x = function (v) { return ((v - lo) / (hi - lo) * 100).toFixed(2) + '%'; };
+    var h = '<div class="dots" role="img" aria-label="توزيع المقارنات"><div class="axis"></div>';
+    if (isNum(low) && isNum(high)) h += '<div class="band" style="left:' + x(low) + ';width:calc(' + x(high) + ' - ' + x(low) + ')"></div>';
+    rows.forEach(function (r) {
+      if (!r.valid || !isNum(r.value)) return;
+      h += '<div class="dot ' + (!r.used ? (r.outlier ? 'out' : 'off') : '') + '" style="left:' + x(r.value) + '" title="' + esc((r.label || '') + ': ' + fmt(r.value)) + '"></div>';
+    });
+    if (isNum(indicated)) h += '<div class="mark" style="left:' + x(indicated) + '"><span>' + fmt(indicated) + '</span></div>';
+    h += '<span class="tick" style="left:3%">' + fmt(lo + pad) + '</span><span class="tick" style="left:97%">' + fmt(hi - pad) + '</span>';
+    return h + '</div>';
+  }
+
+  function pasteButton(target, kind) { return btn('openPaste', 'لصق من Excel', 'data-target="' + target + '" data-kind="' + kind + '"', 'ghost'); }
+
+  // ------------------------------------------------------------ tab: case
+  function tabCase(R) {
+    return '<section class="panel"><div class="panel-head"><h2>بيانات المهمة والعقار</h2></div><div class="form">' +
+      field('اسم الحالة / العقار', inp('case.name')) + field('العميل', inp('case.client')) + field('الغرض من التقييم', inp('case.purpose')) +
+      field('أساس القيمة', inp('case.basis')) + field('نوع العقار', inp('case.propertyType')) + field('الموقع', inp('case.location')) +
+      field('رقم الصك / المرجع', inp('case.deed')) + field('تاريخ التقييم', inp('case.valuationDate', { type: 'date' })) + field('تاريخ المعاينة', inp('case.inspectionDate', { type: 'date' })) +
+      field('مساحة الأرض م²', inp('case.landArea', { num: 1 })) +
+      field('المساحة التأجيرية GLA م²', inp('case.gla', { num: 1 }), 'فارغة = مجموع مساحات جدول الوحدات (' + N(R.noi.rentRoll.totals.area) + ' م²)') +
+      field('العملة', inp('case.currency')) + field('تقريب القيم إلى', inp('case.rounding', { num: 1 }), 'مثال: 10,000 أو 100,000') +
+      field('المقيّم', inp('case.appraiser')) + field('ملاحظات', area('case.notes'), '', 'wide') +
+      '</div></section>' +
+      '<section class="panel"><div class="panel-head"><h2>مسار العمل</h2></div>' +
+      '<ol class="trace"><li>الإيجار السوقي: أدخل أو الصق المقارنات الإيجارية؛ تُنظّف الأرقام وتُحوّل إلى ريال/م²/سنة وتُرصد الشواذ.</li>' +
+      '<li>الدخل وNOI: جدول الوحدات يأخذ الإيجار السوقي من المقارنات تلقائياً أو يدوياً، ثم الشغور والمصروفات.</li>' +
+      '<li>معدل الرسملة: من الصفقات، النطاق الاستثماري، البناء التراكمي، أو تقارير السوق، مع إمكانية الترجيح أو التحديد المهني.</li>' +
+      '<li>الرسملة المباشرة وDCF والمقارنات البيعية تُحسب فورياً، ثم الحساسية والتسوية والتقرير.</li></ol>' +
+      '<p class="hint">كل حقل قابل للتعديل، وأي نتيجة يمكن تجاوزها مهنياً مع تسجيل المبرر. البيانات تُحفظ في هذا المتصفح فقط؛ استخدم «تصدير الحالة» لحفظ نسخة.</p></section>';
+  }
+
+  // ------------------------------------------------------------ tab: rent
+  function tabRent(R) {
+    var ra = R.rent;
+    var all = ra.all.rows;
+    var cols = [
+      { h: 'مستخدم', f: function (r, i, p) { return '<input type="checkbox" data-path="' + p + '.include"' + (r.include !== false ? ' checked' : '') + ' aria-label="استخدام المقارن">'; } },
+      { h: 'الوصف', cls: 'w-l', f: function (r, i, p) { return inp(p + '.label', { ph: 'الموقع / العقار' }); } },
+      { h: 'الفئة', cls: 'w-s', f: function (r, i, p) { return inp(p + '.category', { ph: 'مكاتب', list: 'cats' }); } },
+      { h: 'الإيجار', cls: 'w-s', f: function (r, i, p) { return inp(p + '.rent', { num: 1 }); } },
+      { h: 'الفترة', cls: 'w-s', f: function (r, i, p) { return sel(p + '.period', [['annual', 'سنوي'], ['monthly', 'شهري']]); } },
+      { h: 'الأساس', cls: 'w-s', f: function (r, i, p) { return sel(p + '.basis', [['total', 'إجمالي الوحدة'], ['perM2', 'للمتر']]); } },
+      { h: 'المساحة م²', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.area', { num: 1 }); } },
+      { h: 'التاريخ', cls: 'w-s', f: function (r, i, p) { return inp(p + '.date', { ph: '2026-06' }); } },
+      { h: 'تعديلات % (زمن، موقع، مساحة، حالة، عمر، أخرى)', f: function (r, i, p) { return adjCells(p); } },
+      { h: 'الوزن', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.weight', { num: 1 }); } },
+      { h: 'ر.س/م²/سنة', num: 1, cls: 'computed', f: function (r, i) { return N(all[i] && all[i].base); } },
+      { h: 'التعديل', num: 1, f: function (r, i) { return all[i] ? Pc(all[i].adjPct, 1) : ''; } },
+      { h: 'بعد التعديل', num: 1, cls: 'computed', f: function (r, i) { return N(all[i] && all[i].value); } },
+      { h: 'الحالة', f: function (r, i) { return evidenceStatus(catRow(ra, i) || all[i]); } }
+    ];
+    var cats = ra.categories.length ? ra.categories : [''];
+    var cards = cats.map(function (c) {
+      var a = c ? ra.byCategory[c] : ra.all;
+      var ov = c ? '<div class="form">' + field('معدل معتمد مهنياً لهذه الفئة (اختياري)', inp('rentComps.overrides.' + c, { num: 1, ph: 'فارغ = المستخلص' })) + '</div>' : '';
+      var applied = ra.rateFor(c);
+      return '<div class="method"><div class="panel-head"><h2>' + (c ? 'فئة: ' + esc(c) : 'جميع المقارنات') + '</h2>' +
+        '<span class="mv">' + N(applied) + ' <small>' + cur() + '/م²</small></span></div>' +
+        dotPlot(a.rows, a.indicated, a.low, a.high, function (v) { return N(v); }) + statsBlock(a, function (v) { return N(v); }, cur() + '/م²') + ov +
+        warnList(a.warnings) + '</div>';
+    }).join('');
+    return '<section class="panel"><div class="panel-head"><h2>المقارنات الإيجارية</h2><div class="tools">' +
+      btn('addRow', 'إضافة مقارن', 'data-list="rentComps.rows" data-tpl="rentComp"', 'ghost') + pasteButton('rentComps.rows', 'rent') + btn('copyTable', 'نسخ الجدول', 'data-table="t-rent"', 'ghost') + '</div></div>' +
+      '<p class="hint">تقبل الحقول الأرقام العربية والفواصل والعملة. الإيجار الشهري يُحوّل إلى سنوي، والإجمالي يُقسم على المساحة. التعديلات نسب مئوية موجبة أو سالبة على المقارن ليعادل العقار محل التقييم.</p>' +
+      editTable('rentComps.rows', cols, { id: 't-rent', rowClass: function (r, i) { return rowClassFor(catRow(ra, i) || all[i]); } }) +
+      evidenceControls('rentComps') + '</section>' +
+      '<section class="panel"><div class="panel-head"><h2>الإيجار السوقي المستخلص لكل فئة</h2></div>' +
+      '<p class="hint">جدول الوحدات في «الدخل وNOI» يستخدم هذه المعدلات تلقائياً عندما يكون مصدر الإيجار «من المقارنات» وتطابق الفئة.</p>' +
+      '<div class="cols">' + cards + '</div></section>';
+  }
+  function catRow(ra, i) {
+    var r = ra.all.rows[i];
+    if (!r || !r.category || !ra.byCategory[r.category]) return null;
+    var list = ra.byCategory[r.category].rows, idx = 0;
+    for (var k = 0; k < i; k++) if (ra.all.rows[k].category === r.category) idx++;
+    return list[idx];
+  }
+
+  // ------------------------------------------------------------- tab: NOI
+  function tabNOI(R) {
+    var n = R.noi, rr = n.rentRoll;
+    var m = state.model;
+    var direct = m.income.mode === 'direct';
+    var cols = [
+      { h: 'الوصف', cls: 'w-m', f: function (r, i, p) { return inp(p + '.label'); } },
+      { h: 'الفئة', cls: 'w-s', f: function (r, i, p) { return inp(p + '.category', { list: 'cats' }); } },
+      { h: 'عدد الوحدات', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.units', { num: 1 }); } },
+      { h: 'مساحة الوحدة م²', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.area', { num: 1 }); } },
+      { h: 'المؤجر', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.occupied', { num: 1 }); } },
+      { h: 'الإيجار التعاقدي للوحدة', cls: 'w-s', f: function (r, i, p) { return inp(p + '.contractRent', { num: 1 }); } },
+      { h: 'سنوات متبقية بالعقد', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.leaseYears', { num: 1, ph: '∞' }); } },
+      { h: 'مصدر الإيجار السوقي', cls: 'w-s', f: function (r, i, p) { return sel(p + '.marketSource', [['comps', 'من المقارنات'], ['manual', 'يدوي (م²)']]); } },
+      { h: 'السوقي ر.س/م²', cls: 'w-s', f: function (r, i, p) { return r.marketSource === 'comps' ? '<span class="chip link">' + N(rr.rows[i] && rr.rows[i].marketRate) + '</span>' : inp(p + '.marketRate', { num: 1 }); } },
+      { h: 'أساس الدخل', cls: 'w-s', f: function (r, i, p) { return sel(p + '.basis', [['default', 'الافتراضي'], ['blended', 'تعاقدي للمؤجر + سوقي للشاغر'], ['contract', 'تعاقدي'], ['market', 'سوقي']]); } },
+      { h: 'السوقي للوحدة', num: 1, cls: 'computed', f: function (r, i) { return N(rr.rows[i] && rr.rows[i].marketUnit); } },
+      { h: 'فرق السوقي عن التعاقدي', num: 1, f: function (r, i) { var g = rr.rows[i] && rr.rows[i].reversionGap; return isNum(g) ? '<span class="chip ' + (g > 0.05 ? 'warn' : g < -0.05 ? 'bad' : 'muted') + '">' + P(g, 1) + '</span>' : '—'; } },
+      { h: 'الدخل المحتمل PGI', num: 1, cls: 'computed', f: function (r, i) { return N(rr.rows[i] && rr.rows[i].pgi); } }
+    ];
+    var foot = '<tfoot><tr><td>الإجمالي</td><td></td><td class="num">' + N(rr.totals.units) + '</td><td class="num">' + N(rr.totals.area) + ' م²</td><td class="num">' + N(rr.totals.occupied) +
+      '</td><td colspan="7">الإشغال الفعلي ' + P(rr.totals.physicalOccupancy, 1) + ' · الإيجار السوقي الكامل ' + N(rr.totals.marketTotal) + ' · التعاقدي ' + N(rr.totals.contractTotal) + '</td><td class="num">' + N(rr.totals.pgi) + '</td><td></td></tr></tfoot>';
+
+    var opCols = [
+      { h: 'البند', cls: 'w-l', f: function (r, i, p) { return inp(p + '.label'); } },
+      { h: 'أساس الاحتساب', cls: 'w-m', f: function (r, i, p) { return sel(p + '.basis', [['fixed', 'مبلغ سنوي ثابت'], ['perM2', 'ريال لكل م² GLA'], ['pctEGI', '% من الدخل الفعلي EGI'], ['pctPGI', '% من الدخل المحتمل PGI']]); } },
+      { h: 'القيمة المدخلة', cls: 'w-s', f: function (r, i, p) { return inp(p + '.amount', { num: 1 }); } },
+      { h: 'المبلغ السنوي', num: 1, cls: 'computed', f: function (r, i) { return N(n.opexLines[i] && n.opexLines[i].amount); } },
+      { h: '% من EGI', num: 1, f: function (r, i) { return n.opexLines[i] ? P(n.opexLines[i].amount / n.egi, 1) : ''; } },
+      { h: 'ر.س/م²', num: 1, f: function (r, i) { return n.opexLines[i] ? N(n.opexLines[i].amount / n.gla, 1) : ''; } }
+    ];
+
+    var stmt = [
+      ['إجمالي الدخل المحتمل PGI', n.pgi, 'sub'], ['خسارة الشغور (' + P(n.vacancyPct, 1) + ')', -n.vacancyLoss], ['خسارة التحصيل (' + P(n.collectionPct, 1) + ')', -n.collectionLoss],
+      ['دخل آخر (مواقف، لوحات، خدمات)', n.otherIncome], ['الدخل الفعلي الإجمالي EGI', n.egi, 'sub']
+    ].concat(n.opexLines.map(function (l) { return ['  ' + (l.label || 'مصروف'), -l.amount]; })).concat([
+      ['إجمالي المصروفات التشغيلية (' + P(n.opexRatio, 1) + ' من EGI)', -n.opex, 'sub'], ['صافي الدخل التشغيلي المحسوب', n.noiComputed, 'sub']
+    ]);
+    if (n.overridden) stmt.push(['تجاوز مهني', n.noi - n.noiComputed]);
+    stmt.push(['صافي الدخل التشغيلي المعتمد NOI', n.noi, 'total']);
+
+    return '<section class="panel"><div class="panel-head"><h2>مصدر الدخل</h2></div><div class="form">' +
+      field('طريقة احتساب الدخل المحتمل', sel('income.mode', [['rentroll', 'جدول الوحدات (موصى به)'], ['direct', 'إدخال PGI مباشرة']])) +
+      (direct ? field('إجمالي الدخل المحتمل السنوي', inp('income.pgiDirect', { num: 1 })) :
+        field('أساس الدخل الافتراضي', sel('income.rentBasis', [['blended', 'تعاقدي للمؤجر + سوقي للشاغر'], ['market', 'سوقي بالكامل'], ['contract', 'تعاقدي بالكامل']]), 'للرسملة المباشرة على أساس السوق اختر «سوقي بالكامل»') +
+        field('الإيجار التعاقدي مدخل', sel('income.contractPeriod', [['annual', 'سنوياً للوحدة'], ['monthly', 'شهرياً للوحدة']]))) +
+      '</div>' + (direct ? '' : '<div class="panel-head"><h3>جدول الوحدات Rent Roll</h3><div class="tools">' + btn('addRow', 'إضافة صف', 'data-list="income.units" data-tpl="unit"', 'ghost') + '</div></div>' +
+        editTable('income.units', cols, { id: 't-units', foot: foot }) +
+        '<p class="hint">«سنوات متبقية بالعقد»: بعد انتهائها يتحول الصف إلى الإيجار السوقي في DCF. اتركه فارغاً لإبقاء العقد طوال الفترة.</p>') +
+      '</section>' +
+      '<div class="cols"><section class="panel"><div class="panel-head"><h2>الشغور والتحصيل والدخل الآخر</h2></div><div class="form">' +
+      field('نسبة الشغور والفاقد %', inp('income.vacancyPct', { num: 1 }), 'من إجمالي الدخل المحتمل') +
+      field('خسارة التحصيل %', inp('income.collectionLossPct', { num: 1 }), 'من الدخل بعد الشغور') +
+      field('دخل آخر سنوي', inp('income.otherIncome', { num: 1 })) + '</div>' +
+      '<div class="panel-head"><h2>المصروفات التشغيلية</h2></div><div class="form">' +
+      field('طريقة الإدخال', sel('opex.mode', [['itemized', 'بنود تفصيلية'], ['ratio', 'نسبة إجمالية من EGI']])) +
+      (m.opex.mode === 'ratio' ? field('نسبة المصروفات %', inp('opex.ratio', { num: 1 })) : '') + '</div>' +
+      (m.opex.mode === 'ratio' ? '' : editTable('opex.lines', opCols, { id: 't-opex' }) + '<div>' + btn('addRow', 'إضافة بند', 'data-list="opex.lines" data-tpl="opexLine"', 'ghost') + '</div>') +
+      '</section>' +
+      '<section class="panel"><div class="panel-head"><h2>قائمة صافي الدخل التشغيلي</h2><div class="tools">' + btn('copyTable', 'نسخ', 'data-table="t-stmt"', 'ghost') + '</div></div>' +
+      '<div class="scroll"><table class="stmt" id="t-stmt"><thead><tr><th>البند</th><th class="num">سنوي (' + esc(cur()) + ')</th><th class="num">ر.س/م²</th></tr></thead><tbody>' +
+      stmt.map(function (s) { return '<tr class="' + (s[2] || '') + '"><td>' + esc(s[0]) + '</td><td class="num ' + (s[1] < 0 ? 'neg' : '') + '">' + N(s[1]) + '</td><td class="num">' + N(s[1] / n.gla, 1) + '</td></tr>'; }).join('') +
+      '</tbody></table></div>' + traceList(n.trace) +
+      '<div class="panel-head"><h3>تجاوز مهني لصافي الدخل</h3></div>' +
+      '<div class="form">' + '<div class="field"><span class="lbl">التفعيل</span>' + chk('noiOverride.enabled', 'اعتماد NOI مختلف عن المحسوب') + '</div>' +
+      (m.noiOverride.enabled ? field('NOI المعتمد', inp('noiOverride.value', { num: 1 })) + field('المبرر', inp('noiOverride.note', { ph: 'مثال: حسب القوائم المدققة 2025' }), '', 'wide') : '') + '</div>' +
+      warnList(n.warnings) + '</section></div>';
+  }
+
+  // -------------------------------------------------------------- tab: cap
+  function tabCap(R) {
+    var c = R.cap, m = state.model, a = c.methods.comps.detail;
+    var cols = [
+      { h: 'مستخدم', f: function (r, i, p) { return '<input type="checkbox" data-path="' + p + '.include"' + (r.include !== false ? ' checked' : '') + ' aria-label="استخدام">'; } },
+      { h: 'الصفقة', cls: 'w-l', f: function (r, i, p) { return inp(p + '.label'); } },
+      { h: 'سعر البيع', cls: 'w-s', f: function (r, i, p) { return inp(p + '.price', { num: 1 }); } },
+      { h: 'صافي الدخل NOI', cls: 'w-s', f: function (r, i, p) { return inp(p + '.noi', { num: 1 }); } },
+      { h: 'أو معدل معلن %', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.capRate', { num: 1 }); } },
+      { h: 'التاريخ', cls: 'w-s', f: function (r, i, p) { return inp(p + '.date'); } },
+      { h: 'تعديل (نقطة %)', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.adjPts', { num: 1 }); } },
+      { h: 'الوزن', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.weight', { num: 1 }); } },
+      { h: 'المعدل الضمني', num: 1, cls: 'computed', f: function (r, i) { return a.rows[i] ? Pc(a.rows[i].base) : ''; } },
+      { h: 'بعد التعديل', num: 1, cls: 'computed', f: function (r, i) { return a.rows[i] ? Pc(a.rows[i].value) : ''; } },
+      { h: 'الحالة', f: function (r, i) { return evidenceStatus(a.rows[i]); } }
+    ];
+    var band = c.methods.band, bu = c.methods.buildup, sv = c.methods.survey;
+    var sel0 = m.cap.selection;
+    var on = function (k) { return sel0 === k || (sel0 === 'weighted' && E.numOr(m.cap.weights[k], 0) > 0) ? ' on' : ''; };
+    var pf = function (v) { return isNum(v) ? v.toFixed(2) + '%' : '—'; };
+
+    var methodVals = ['comps', 'band', 'buildup', 'survey'].map(function (k) { return { label: c.methods[k].label, value: c.methods[k].value, valid: isNum(c.methods[k].value), used: true }; });
+
+    return '<section class="panel"><div class="panel-head"><h2>أدلة معدل الرسملة من الصفقات</h2><div class="tools">' +
+      btn('addRow', 'إضافة صفقة', 'data-list="cap.rows" data-tpl="capComp"', 'ghost') + pasteButton('cap.rows', 'cap') + btn('copyTable', 'نسخ', 'data-table="t-cap"', 'ghost') + '</div></div>' +
+      '<p class="hint">المعدل الضمني = NOI ÷ سعر البيع. عند عدم توفر NOI أدخل المعدل المعلن للصفقة. «التعديل» بالنقاط المئوية لفروق الموقع/الجودة/المخاطر (موجب = مخاطر أعلى في العقار محل التقييم).</p>' +
+      editTable('cap.rows', cols, { id: 't-cap', rowClass: function (r, i) { return rowClassFor(a.rows[i]); } }) +
+      evidenceControls('cap') + dotPlot(a.rows, a.indicated, a.low, a.high, pf) + statsBlock(a, pf, '%') + warnList(a.warnings) + '</section>' +
+
+      '<section class="panel"><div class="panel-head"><h2>طرق اشتقاق بديلة</h2></div><div class="cols-3">' +
+      '<div class="method' + on('comps') + '"><h3>مقارنات السوق</h3><span class="mv">' + pf(c.methods.comps.value) + '</span><small>من ' + a.stats.n + ' صفقات مستخدمة · النطاق ' + pf(a.low) + ' – ' + pf(a.high) + '</small></div>' +
+      '<div class="method' + on('band') + '"><h3>النطاق الاستثماري Band of Investment</h3><div class="form">' +
+      field('نسبة التمويل LTV %', inp('cap.band.ltv', { num: 1 })) + field('معدل الفائدة %', inp('cap.band.rate', { num: 1 })) +
+      field('مدة القرض (سنوات)', inp('cap.band.years', { num: 1 })) + field('عائد حقوق الملكية %', inp('cap.band.equityRate', { num: 1 })) + '</div>' +
+      '<small>ثابت الرهن السنوي ' + P(band.mc) + ' · ' + P(band.ltv, 0) + ' × ' + P(band.mc) + ' + ' + P(1 - band.ltv, 0) + ' × ' + P(band.edr) + '</small><span class="mv">' + pf(band.value) + '</span></div>' +
+      '<div class="method' + on('buildup') + '"><h3>البناء التراكمي</h3><div class="form">' + field('العائد الخالي من المخاطر %', inp('cap.buildup.riskFree', { num: 1 })) + '</div>' +
+      editTable('cap.buildup.premiums', [
+        { h: 'العلاوة', cls: 'w-m', f: function (r, i, p) { return inp(p + '.label'); } },
+        { h: '%', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.value', { num: 1 }); } }]) +
+      '<div>' + btn('addRow', 'إضافة علاوة', 'data-list="cap.buildup.premiums" data-tpl="premium"', 'ghost sm') + '</div>' +
+      '<div class="form">' + field('النمو طويل الأجل g %', inp('cap.buildup.growth', { num: 1 })) + '</div>' +
+      '<small>معدل الخصم ' + pf(bu.discount) + ' − النمو ' + pf(bu.growth) + '</small><span class="mv">' + pf(bu.value) + '</span>' +
+      '<div>' + btn('useDiscount', 'استخدم ' + pf(bu.discount) + ' كمعدل خصم في DCF', '', 'ghost sm') + '</div></div>' +
+      '<div class="method' + on('survey') + '"><h3>تقارير ومسوح السوق</h3><div class="form">' +
+      field('المعدل %', inp('cap.survey.value', { num: 1 })) + field('الأدنى %', inp('cap.survey.low', { num: 1 })) + field('الأعلى %', inp('cap.survey.high', { num: 1 })) +
+      field('المصدر', inp('cap.survey.source'), '', 'wide') + '</div><span class="mv">' + pf(sv.value) + '</span></div>' +
+      '</div></section>' +
+
+      '<section class="panel"><div class="panel-head"><h2>اختيار معدل الرسملة</h2></div>' +
+      dotPlot(methodVals, c.selected, c.low, c.high, pf) +
+      '<div class="form">' + field('الأساس', sel('cap.selection', [['comps', 'مقارنات السوق'], ['band', 'النطاق الاستثماري'], ['buildup', 'البناء التراكمي'], ['survey', 'تقارير السوق'], ['weighted', 'ترجيح بين الطرق'], ['manual', 'تحديد مهني']])) +
+      (sel0 === 'manual' ? field('المعدل المعتمد %', inp('cap.manual', { num: 1 })) : '') +
+      (sel0 === 'weighted' ? field('وزن المقارنات', inp('cap.weights.comps', { num: 1 })) + field('وزن النطاق الاستثماري', inp('cap.weights.band', { num: 1 })) +
+        field('وزن البناء التراكمي', inp('cap.weights.buildup', { num: 1 })) + field('وزن تقارير السوق', inp('cap.weights.survey', { num: 1 })) : '') +
+      field('نطاق المعدل', sel('cap.rangeMode', [['spread', '± نقاط أساس'], ['evidence', 'نطاق أدلة الصفقات'], ['manual', 'يدوي']])) +
+      (m.cap.rangeMode === 'manual' ? field('الأدنى %', inp('cap.rangeLow', { num: 1 })) + field('الأعلى %', inp('cap.rangeHigh', { num: 1 })) : m.cap.rangeMode === 'evidence' ? '' : field('± نقاط أساس', inp('cap.rangeBps', { num: 1 }))) +
+      field('مبرر الاختيار', area('cap.note', { ph: 'مثال: الوسيط بعد استبعاد صفقة السليمانية لقدم المبنى، ويتسق مع تقارير السوق.' }), '', 'wide') + '</div>' +
+      '<div class="result"><span class="lab">المعدل المعتمد</span><span class="big">' + pf(c.selected) + '</span><span class="lab">النطاق ' + pf(c.low) + ' – ' + pf(c.high) + ' · ' + esc(c.basisText) + '</span></div>' +
+      warnList(c.warnings) + '</section>';
+  }
+
+  // ----------------------------------------------------------- tab: direct
+  function tabDirect(R) {
+    var d = R.direct, n = R.noi, c = R.cap, r = state.model.case.rounding;
+    var steps = [-100, -75, -50, -25, 0, 25, 50, 75, 100];
+    var tbl = '<div class="scroll"><table id="t-dsteps"><thead><tr><th>معدل الرسملة</th>' + steps.map(function (s) { return '<th class="num">' + (c.selected + s / 100).toFixed(2) + '%</th>'; }).join('') + '</tr></thead><tbody><tr><td>القيمة</td>' +
+      steps.map(function (s) { return '<td class="num' + (s === 0 ? ' computed' : '') + '">' + N(E.roundTo(n.noi / ((c.selected + s / 100) / 100) + d.adjSum, r)) + '</td>'; }).join('') + '</tr><tr><td>التغير</td>' +
+      steps.map(function (s) { var v = n.noi / ((c.selected + s / 100) / 100) + d.adjSum; return '<td class="num">' + P(v / d.value - 1, 1) + '</td>'; }).join('') + '</tr></tbody></table></div>';
+    return '<section class="panel"><div class="panel-head"><h2>الرسملة المباشرة</h2></div>' +
+      '<div class="result"><span class="lab">القيمة (' + esc(cur()) + ')</span><span class="big">' + N(d.rounded) + '</span><span class="lab">النطاق ' + N(E.roundTo(d.low, r)) + ' – ' + N(E.roundTo(d.high, r)) + '</span></div>' +
+      '<ul class="kv"><li>صافي الدخل التشغيلي NOI <b>' + N(n.noi) + '</b></li><li>معدل الرسملة <b>' + P(c.selected / 100) + '</b></li>' +
+      '<li>القيمة للمتر المربع GLA <b>' + N(d.perM2) + '</b></li><li>مضاعف الدخل الفعلي EGIM <b>' + N(d.multiplier, 2) + '</b></li>' +
+      '<li>العائد على القيمة المقربة <b>' + P(n.noi / d.rounded) + '</b></li><li>تعديلات بعد الرسملة <b>' + N(d.adjSum) + '</b></li></ul>' +
+      traceList(d.trace) + '</section>' +
+      '<section class="panel"><div class="panel-head"><h2>تعديلات بعد الرسملة</h2><div class="tools">' + btn('addRow', 'إضافة تعديل', 'data-list="direct.adjustments" data-tpl="adjustment"', 'ghost') + '</div></div>' +
+      '<p class="hint">مبالغ تُضاف أو تُطرح من القيمة المرسملة: مصروفات رأسمالية مؤجلة، تكاليف تأجير، فرق إيجار أقل من السوق، أرض زائدة. أدخل الطرح بإشارة سالبة.</p>' +
+      editTable('direct.adjustments', [
+        { h: 'البند', cls: 'w-l', f: function (r, i, p) { return inp(p + '.label'); } },
+        { h: 'المبلغ', cls: 'w-s', f: function (r, i, p) { return inp(p + '.amount', { num: 1 }); } }]) + '</section>' +
+      '<section class="panel"><div class="panel-head"><h2>القيمة عند معدلات مختلفة</h2><div class="tools">' + btn('copyTable', 'نسخ', 'data-table="t-dsteps"', 'ghost') + '</div></div>' + tbl + '</section>';
+  }
+
+  // -------------------------------------------------------------- tab: DCF
+  function tabDCF(R) {
+    var d = R.dcf, c = R.cap, bu = c.methods.buildup;
+    var rowsDef = [
+      ['إجمالي الدخل المحتمل', 'pgi'], ['شغور وتحصيل', 'vacancyLoss', -1], ['دخل آخر', 'other'], ['الدخل الفعلي EGI', 'egi', 1, 'sub'], ['المصروفات التشغيلية', 'opex', -1],
+      ['تعديل التجاوز المهني', 'overrideAdj'], ['صافي الدخل NOI', 'noi', 1, 'sub'], ['مصروفات رأسمالية', 'capex', -1], ['صافي التدفق النقدي', 'cf', 1, 'sub'],
+      ['معامل الخصم', 'df', 1, '', 4], ['القيمة الحالية', 'pv', 1, 'total']
+    ];
+    if (!R.noi.overridden) rowsDef = rowsDef.filter(function (x) { return x[1] !== 'overrideAdj'; });
+    var yrs = d.rows.concat([d.forward]);
+    var table = '<div class="scroll"><table class="stmt" id="t-dcf"><thead><tr><th>البند / السنة</th>' + yrs.map(function (y, i) { return '<th class="num">' + (i === d.rows.length ? 'سنة ' + y.year + ' (للتخارج)' : 'سنة ' + y.year) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      rowsDef.map(function (rd) {
+        return '<tr class="' + (rd[3] || '') + '"><td>' + rd[0] + '</td>' + yrs.map(function (y, i) {
+          if (i === d.rows.length && ['df', 'pv', 'cf', 'capex'].indexOf(rd[1]) >= 0) return '<td></td>';
+          var v = y[rd[1]] * (rd[2] || 1);
+          return '<td class="num ' + (v < 0 ? 'neg' : '') + '">' + (rd[4] ? v.toFixed(rd[4]) : N(v)) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '<tr><td>نسبة الشغور</td>' + yrs.map(function (y) { return '<td class="num">' + P(y.vacancyPct, 1) + '</td>'; }).join('') + '</tr></tbody></table></div>';
+    var sugg = isNum(c.selected) ? (c.baseSelected + E.series(state.model.dcf.rentGrowth, 3, 0)[2]).toFixed(2) : '—';
+    return '<section class="panel"><div class="panel-head"><h2>افتراضات التدفقات النقدية المخصومة</h2></div><div class="form">' +
+      field('فترة الاحتفاظ (سنوات)', inp('dcf.years', { num: 1 })) +
+      field('نمو الإيجار السنوي %', inp('dcf.rentGrowth', { num: 1 }), 'قيمة واحدة أو قائمة تبدأ من السنة 2؛ آخر قيمة تتكرر. مثال: 0, 2.5') +
+      field('نمو المصروفات السنوي %', inp('dcf.expenseGrowth', { num: 1 }), 'ينطبق على البنود الثابتة وبنود ريال/م²') +
+      field('الشغور لكل سنة %', inp('dcf.vacancy', { num: 1, ph: 'فارغ = ' + state.model.income.vacancyPct + '%' }), 'مثال لفترة تأجير: 15, 10, 7') +
+      field('معدل الخصم %', inp('dcf.discountRate', { num: 1 }), 'مرجع: البناء التراكمي ' + (isNum(bu.discount) ? bu.discount.toFixed(2) : '—') + '% · معدل الرسملة + النمو ≈ ' + sugg + '%') +
+      field('معدل الرسملة التخارجي %', inp('dcf.exitCap', { num: 1, ph: 'فارغ = المعتمد + هامش' }), 'فارغ = ' + (isNum(c.baseSelected) ? c.baseSelected.toFixed(2) : '—') + '% + الهامش') +
+      field('هامش التخارج (نقاط أساس)', inp('dcf.exitSpreadBps', { num: 1 })) +
+      field('تكاليف البيع %', inp('dcf.sellingCostPct', { num: 1 })) +
+      field('احتياطي رأسمالي % من EGI', inp('dcf.capexPct', { num: 1 })) +
+      field('مصروفات رأسمالية محددة', inp('dcf.capexSchedule', { ph: '5:450000; 8:200000' }), 'السنة:المبلغ مفصولة بـ ;') +
+      field('أساس NOI للتخارج', sel('dcf.exitBasis', [['next', 'السنة التالية لنهاية الفترة'], ['final', 'السنة الأخيرة']])) +
+      field('توقيت التدفقات', sel('dcf.timing', [['end', 'نهاية السنة'], ['mid', 'منتصف السنة']])) +
+      field('نطاق القيمة ± نقاط أساس', inp('dcf.rangeBps', { num: 1 }), 'يُطبق على معدل الخصم والتخارج معاً') +
+      '</div></section>' +
+      '<section class="panel"><div class="panel-head"><h2>النتيجة</h2></div>' +
+      '<div class="result"><span class="lab">قيمة DCF (' + esc(cur()) + ')</span><span class="big">' + N(d.rounded) + '</span><span class="lab">النطاق ' + N(E.roundTo(d.low, state.model.case.rounding)) + ' – ' + N(E.roundTo(d.high, state.model.case.rounding)) + ' (± ' + d.rangeBps + ' نقطة أساس)</span></div>' +
+      '<ul class="kv"><li>القيمة الحالية للتدفقات <b>' + N(d.pvCF) + '</b></li><li>القيمة الحالية للتخارج <b>' + N(d.pvRev) + '</b></li>' +
+      '<li>حصة التخارج من القيمة <b>' + P(d.reversionShare, 1) + '</b></li><li>معدل الدخول الضمني <b>' + P(d.goingIn) + '</b></li>' +
+      '<li>معدل التخارج <b>' + P(d.exitCap) + '</b></li><li>نمو NOI السنوي المركب <b>' + P(d.noiCagr) + '</b></li>' +
+      '<li>قيمة التخارج الإجمالية <b>' + N(d.gross) + '</b></li><li>صافي التخارج بعد تكاليف البيع <b>' + N(d.net) + '</b></li></ul>' +
+      traceList(d.trace) + warnList(d.warnings) + '</section>' +
+      '<section class="panel"><div class="panel-head"><h2>جدول التدفقات النقدية</h2><div class="tools">' + btn('copyTable', 'نسخ إلى Excel', 'data-table="t-dcf"', 'ghost') + '</div></div>' + table + '</section>';
+  }
+
+  // ------------------------------------------------------------ tab: sales
+  function tabSales(R) {
+    var s = R.sales, a = s.analysis;
+    var cols = [
+      { h: 'مستخدم', f: function (r, i, p) { return '<input type="checkbox" data-path="' + p + '.include"' + (r.include !== false ? ' checked' : '') + ' aria-label="استخدام">'; } },
+      { h: 'الوصف', cls: 'w-l', f: function (r, i, p) { return inp(p + '.label'); } },
+      { h: 'السعر', cls: 'w-s', f: function (r, i, p) { return inp(p + '.price', { num: 1 }); } },
+      { h: 'الأساس', cls: 'w-s', f: function (r, i, p) { return sel(p + '.basis', [['total', 'سعر إجمالي'], ['perM2', 'سعر للمتر']]); } },
+      { h: 'المساحة م²', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.area', { num: 1 }); } },
+      { h: 'التاريخ', cls: 'w-s', f: function (r, i, p) { return inp(p + '.date'); } },
+      { h: 'تعديلات % (زمن، موقع، مساحة، حالة، عمر، أخرى)', f: function (r, i, p) { return adjCells(p); } },
+      { h: 'الوزن', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.weight', { num: 1 }); } },
+      { h: 'ر.س/م²', num: 1, cls: 'computed', f: function (r, i) { return N(a.rows[i] && a.rows[i].base); } },
+      { h: 'التعديل', num: 1, f: function (r, i) { return a.rows[i] ? Pc(a.rows[i].adjPct, 1) : ''; } },
+      { h: 'بعد التعديل', num: 1, cls: 'computed', f: function (r, i) { return N(a.rows[i] && a.rows[i].value); } },
+      { h: 'الحالة', f: function (r, i) { return evidenceStatus(a.rows[i]); } }
+    ];
+    return '<section class="panel"><div class="panel-head"><h2>المقارنات البيعية</h2><div class="tools">' +
+      btn('addRow', 'إضافة مقارن', 'data-list="sales.rows" data-tpl="saleComp"', 'ghost') + pasteButton('sales.rows', 'sales') + btn('copyTable', 'نسخ', 'data-table="t-sales"', 'ghost') + '</div></div>' +
+      editTable('sales.rows', cols, { id: 't-sales', rowClass: function (r, i) { return rowClassFor(a.rows[i]); } }) +
+      evidenceControls('sales') +
+      '<div class="form">' + field('مساحة العقار محل التقييم م²', inp('sales.subjectArea', { num: 1, ph: 'فارغ = GLA ' + N(E.num(state.model.case.gla)) })) + '</div>' +
+      dotPlot(a.rows, a.indicated, a.low, a.high, function (v) { return N(v); }) + statsBlock(a, function (v) { return N(v); }, cur() + '/م²') +
+      '<div class="result"><span class="lab">القيمة بالمقارنة</span><span class="big">' + N(s.rounded) + '</span><span class="lab">' + N(s.rate) + ' ' + esc(cur()) + '/م² × ' + N(s.area) + ' م² · النطاق ' + N(s.low) + ' – ' + N(s.high) + '</span></div>' +
+      warnList(a.warnings) + '</section>';
+  }
+
+  // ------------------------------------------------------------- tab: sens
+  var VAR_OPTS = Object.keys(E.SHOCKS).map(function (k) { return [k, E.SHOCKS[k].label + ' (' + E.SHOCKS[k].unit + ')']; });
+  var METRIC_OPTS = Object.keys(E.METRICS).map(function (k) { return [k, E.METRICS[k].label]; });
+
+  function tornadoHtml(t) {
+    var maxD = t.rows.reduce(function (mx, r) { return Math.max(mx, Math.abs(r.dDown || 0), Math.abs(r.dUp || 0)); }, 0) || 1;
+    return '<div class="tornado">' + t.rows.map(function (r) {
+      var seg = function (d, side) {
+        if (!isNum(d) || d === 0) return '';
+        var w = Math.abs(d) / maxD * 48;
+        var left = d < 0 ? 50 - w : 50;
+        return '<div class="seg ' + (d < 0 ? 'neg' : 'pos') + '" style="left:' + left + '%;width:' + w + '%" title="' + side + '"></div>' +
+          '<span class="lbl" style="' + (d < 0 ? 'right:' + (50 + w + 1) + '%' : 'left:' + (50 + w + 1) + '%') + '">' + (d > 0 ? '+' : '') + (d * 100).toFixed(1) + '%</span>';
+      };
+      return '<div class="trow"><div>' + esc(r.label) + ' <small>±' + r.step + ' ' + r.unit + '</small></div><div class="tbar"><div class="c"></div>' +
+        (r.swing ? seg(r.dDown, 'انخفاض') + seg(r.dUp, 'ارتفاع') : '<span class="lbl" style="left:52%;color:var(--muted)">لا يؤثر على هذا المقياس</span>') + '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  function tabSens(R) {
+    var m = state.model, sn = m.sens;
+    var t = E.tornado(m, sn.metric, sn.steps);
+    var size = Math.max(1, Math.min(4, Math.round(E.numOr(sn.gridSize, 2))));
+    var rs = E.numOr(sn.rowStep, E.SHOCKS[sn.rowVar].step), cs = E.numOr(sn.colStep, E.SHOCKS[sn.colVar].step);
+    var rSteps = [], cSteps = [];
+    for (var i = -size; i <= size; i++) { rSteps.push(i * rs); cSteps.push(i * cs); }
+    var g = E.grid(m, sn.gridMetric, sn.rowVar, rSteps, sn.colVar, cSteps);
+    var heat = function (v) {
+      var d = v / g.base - 1; if (!isNum(d)) return '';
+      var a = Math.min(0.55, Math.abs(d) * 2.2);
+      return 'background:color-mix(in srgb, ' + (d >= 0 ? 'var(--good)' : 'var(--bad)') + ' ' + (a * 100).toFixed(0) + '%, var(--surface))';
+    };
+    var gridHtml = '<div class="scroll"><table class="heat" id="t-grid"><thead><tr><th>' + esc(E.SHOCKS[sn.rowVar].label) + ' ↓ / ' + esc(E.SHOCKS[sn.colVar].label) + ' →</th>' +
+      cSteps.map(function (c) { return '<th class="num">' + (c > 0 ? '+' : '') + c + ' ' + E.SHOCKS[sn.colVar].unit + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      g.cells.map(function (row, ri) {
+        return '<tr><th class="num">' + (rSteps[ri] > 0 ? '+' : '') + rSteps[ri] + ' ' + E.SHOCKS[sn.rowVar].unit + '</th>' + row.map(function (v, ci) {
+          return '<td class="num' + (rSteps[ri] === 0 && cSteps[ci] === 0 ? ' base' : '') + '" style="' + heat(v) + '">' + N(E.roundTo(v, m.case.rounding)) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div>';
+
+    var sc = E.scenarios(m);
+    var shockKeys = ['rentPct', 'vacancyPts', 'opexPct', 'capBps', 'discountBps', 'exitCapBps', 'growthPts', 'salePct'];
+    var scTable = '<div class="scroll"><table class="grid" id="t-scen"><thead><tr><th>السيناريو</th><th>الاحتمال %</th>' +
+      shockKeys.map(function (k) { return '<th>' + esc(E.SHOCKS[k].label) + ' <small>' + E.SHOCKS[k].unit + '</small></th>'; }).join('') +
+      '<th class="num">NOI</th><th class="num">معدل الرسملة</th><th class="num">الرسملة المباشرة</th><th class="num">DCF</th><th class="num">المرجحة</th><th class="rowact"></th></tr></thead><tbody>' +
+      (m.scenarios || []).map(function (s, i) {
+        var r = sc.list[i], p = 'scenarios.' + i;
+        return '<tr><td class="w-s">' + inp(p + '.name') + '</td><td class="w-xs">' + inp(p + '.prob', { num: 1 }) + '</td>' +
+          shockKeys.map(function (k) { return '<td class="w-xs">' + inp(p + '.shocks.' + k, { num: 1, ph: '0' }) + '</td>'; }).join('') +
+          '<td class="num">' + N(r.noi) + '</td><td class="num">' + Pc(r.cap) + '</td><td class="num">' + N(r.direct) + '</td><td class="num">' + N(r.dcf) + '</td><td class="num computed">' + N(r.final) + '</td>' +
+          '<td class="rowact">' + btn('delRow', 'حذف', 'data-list="scenarios" data-i="' + i + '"', 'danger sm') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+
+    var be = m.sens.beTarget ? (function () {
+      var target = E.num(m.sens.beTarget), key = m.sens.beVar || 'capBps';
+      var st = E.SHOCKS[key].step * 40;
+      var x = E.breakEven(m, sn.metric, key, target, -st, st);
+      return isNum(x) ? 'لتصل ' + E.METRICS[sn.metric].label + ' إلى ' + N(target) + ' يلزم تغيير «' + E.SHOCKS[key].label + '» بمقدار ' + (x > 0 ? '+' : '') + x.toFixed(2) + ' ' + E.SHOCKS[key].unit + '.' : 'لا يمكن بلوغ القيمة المستهدفة ضمن نطاق معقول لهذا المتغير.';
+    })() : '';
+
+    return '<section class="panel"><div class="panel-head"><h2>أثر كل افتراض على القيمة</h2></div><div class="form">' +
+      field('المقياس', sel('sens.metric', METRIC_OPTS)) +
+      Object.keys(E.SHOCKS).map(function (k) { return field('خطوة ' + E.SHOCKS[k].label + ' (' + E.SHOCKS[k].unit + ')', inp('sens.steps.' + k, { num: 1, ph: String(E.SHOCKS[k].step) })); }).join('') +
+      '</div><p class="hint">القيمة الأساسية ' + N(t.base) + '. الأشرطة مرتبة من الأكثر تأثيراً؛ الأخضر = ارتفاع القيمة، الأحمر = انخفاضها، والجانب يعكس اتجاه تغير الافتراض (يسار = خفض، يمين = رفع).</p>' +
+      tornadoHtml(t) +
+      '<div class="scroll"><table id="t-tornado"><thead><tr><th>الافتراض</th><th class="num">عند الخفض</th><th class="num">التغير</th><th class="num">عند الرفع</th><th class="num">التغير</th><th class="num">مدى التأثير</th></tr></thead><tbody>' +
+      t.rows.map(function (r) { return '<tr><td>' + esc(r.label) + ' (±' + r.step + ' ' + r.unit + ')</td><td class="num">' + N(r.down) + '</td><td class="num">' + P(r.dDown, 1) + '</td><td class="num">' + N(r.up) + '</td><td class="num">' + P(r.dUp, 1) + '</td><td class="num">' + N(r.swing) + '</td></tr>'; }).join('') +
+      '</tbody></table></div></section>' +
+
+      '<section class="panel"><div class="panel-head"><h2>جدول الحساسية الثنائي</h2><div class="tools">' + btn('copyTable', 'نسخ', 'data-table="t-grid"', 'ghost') + '</div></div><div class="form">' +
+      field('المقياس', sel('sens.gridMetric', METRIC_OPTS)) + field('متغير الصفوف', sel('sens.rowVar', VAR_OPTS)) + field('خطوة الصفوف', inp('sens.rowStep', { num: 1 })) +
+      field('متغير الأعمدة', sel('sens.colVar', VAR_OPTS)) + field('خطوة الأعمدة', inp('sens.colStep', { num: 1 })) + field('عدد الخطوات لكل اتجاه', inp('sens.gridSize', { num: 1 })) +
+      '</div>' + gridHtml + '</section>' +
+
+      '<section class="panel"><div class="panel-head"><h2>السيناريوهات</h2><div class="tools">' + btn('addRow', 'إضافة سيناريو', 'data-list="scenarios" data-tpl="scenario"', 'ghost') + btn('copyTable', 'نسخ', 'data-table="t-scen"', 'ghost') + '</div></div>' +
+      '<p class="hint">كل سيناريو مجموعة تغييرات على الحالة الأساسية بنفس وحدات جدول الحساسية. الاحتمالات تُستخدم للقيمة المرجحة بالاحتمال فقط.</p>' + scTable +
+      '<div class="result"><span class="lab">القيمة المرجحة بالاحتمال</span><span class="big">' + N(E.roundTo(sc.weighted, m.case.rounding)) + '</span><span class="lab">مجموع الاحتمالات ' + N(sc.totalProb) + '%' + (Math.abs(sc.totalProb - 100) > 0.01 ? ' — يُطبّع تلقائياً' : '') + '</span></div></section>' +
+
+      '<section class="panel"><div class="panel-head"><h2>نقطة التعادل</h2></div><div class="form">' +
+      field('القيمة المستهدفة (' + E.METRICS[sn.metric].label + ')', inp('sens.beTarget', { num: 1, ph: 'مثال: سعر العرض' })) + field('المتغير', sel('sens.beVar', VAR_OPTS)) + '</div>' +
+      (be ? '<div class="result"><span class="lab">' + esc(be) + '</span></div>' : '<p class="hint">أدخل قيمة مستهدفة (مثل سعر العرض أو قيمة الرهن) لمعرفة التغير المطلوب في أي افتراض لبلوغها.</p>') + '</section>';
+  }
+
+  // ----------------------------------------------------------- tab: report
+  function tabReport(R) {
+    var m = state.model, rc = R.recon, cs = m.case, r = cs.rounding;
+    var t = E.tornado(m, 'final', m.sens.steps);
+    var sc = E.scenarios(m);
+    var ap = rc.approaches.map(function (x) {
+      return '<tr><td>' + x.label + '</td><td class="w-xs">' + inp('recon.weights.' + x.key, { num: 1 }) + '</td><td class="num">' + P(x.share, 0) + '</td><td class="num">' + N(x.r && x.r.rounded) +
+        '</td><td class="num">' + N(x.r && E.roundTo(x.r.low, r)) + ' – ' + N(x.r && E.roundTo(x.r.high, r)) + '</td><td class="num computed">' + (x.ok ? N(x.share * x.r.value) : '—') + '</td></tr>';
+    }).join('');
+    var rentCats = R.rent.categories.map(function (c) { return '<li>الإيجار السوقي «' + esc(c) + '» <b>' + N(R.rent.rateFor(c)) + ' ' + esc(cur()) + '/م²</b></li>'; }).join('');
+    var basisLabel = { blended: 'تعاقدي للمؤجر + سوقي للشاغر', market: 'سوقي بالكامل', contract: 'تعاقدي بالكامل' }[m.income.rentBasis] || '';
+    var assumptions = '<ul class="kv">' + rentCats +
+      '<li>أساس الدخل <b>' + (m.income.mode === 'direct' ? 'PGI مدخل مباشرة' : basisLabel) + '</b></li>' +
+      '<li>الدخل المحتمل PGI <b>' + N(R.noi.pgi) + '</b></li><li>الشغور / التحصيل <b>' + P(R.noi.vacancyPct, 1) + ' / ' + P(R.noi.collectionPct, 1) + '</b></li>' +
+      '<li>الدخل الفعلي EGI <b>' + N(R.noi.egi) + '</b></li><li>نسبة المصروفات <b>' + P(R.noi.opexRatio, 1) + '</b></li>' +
+      '<li>صافي الدخل NOI' + (R.noi.overridden ? ' (مُتجاوز)' : '') + ' <b>' + N(R.noi.noi) + '</b></li><li>معدل الرسملة <b>' + P(R.cap.selected / 100) + ' (' + P(R.cap.low / 100) + ' – ' + P(R.cap.high / 100) + ')</b></li>' +
+      '<li>أساس المعدل <b>' + esc(R.cap.basisText) + '</b></li><li>فترة DCF <b>' + R.dcf.years + ' سنوات</b></li>' +
+      '<li>نمو الإيجار / المصروفات <b>' + esc(m.dcf.rentGrowth) + ' / ' + esc(m.dcf.expenseGrowth) + ' %</b></li><li>معدل الخصم / التخارج <b>' + P(R.dcf.discountRate) + ' / ' + P(R.dcf.exitCap) + '</b></li>' +
+      '<li>تكاليف البيع <b>' + P(E.pct(m.dcf.sellingCostPct, 0), 1) + '</b></li><li>سعر المتر بالمقارنة <b>' + N(R.sales.rate) + '</b></li></ul>';
+    var capEvidence = R.cap.methods.comps.detail.rows.map(function (x) { return '<tr><td>' + esc(x.label) + '</td><td class="num">' + Pc(x.base) + '</td><td class="num">' + Pc(x.value) + '</td><td>' + evidenceStatus(x) + '</td></tr>'; }).join('');
+
+    return '<section class="panel"><div class="panel-head"><h2>التسوية بين الطرق</h2></div>' +
+      '<div class="scroll"><table class="grid" id="t-recon"><thead><tr><th>الطريقة</th><th>الوزن</th><th class="num">الحصة</th><th class="num">القيمة</th><th class="num">النطاق</th><th class="num">المساهمة</th></tr></thead><tbody>' + ap +
+      '</tbody><tfoot><tr><td>القيمة المرجحة</td><td></td><td></td><td class="num">' + N(E.roundTo(rc.weighted, r)) + '</td><td class="num">' + N(rc.low) + ' – ' + N(rc.high) + '</td><td></td></tr></tfoot></table></div>' +
+      '<div class="form"><div class="field"><span class="lbl">القيمة النهائية</span>' + chk('recon.overrideEnabled', 'اعتماد قيمة نهائية يحددها المقيّم') + '</div>' +
+      (m.recon.overrideEnabled ? field('القيمة المعتمدة', inp('recon.overrideValue', { num: 1 })) + field('مبرر التجاوز', inp('recon.overrideNote'), '', 'wide') : '') +
+      field('مبررات الترجيح', area('recon.rationale'), '', 'wide') + '</div>' +
+      '<div class="result gold"><span class="lab">القيمة السوقية المقدرة (' + esc(cur()) + ')</span><span class="big">' + N(rc.rounded) + '</span><span class="lab">النطاق ' + N(rc.low) + ' – ' + N(rc.high) + ' · ' + N(rc.perM2) + ' ' + esc(cur()) + '/م² GLA</span></div>' +
+      '<div class="panel-head"><h3>التنبيهات والفحوص</h3></div>' + warnList(R.warnings, 'لا توجد تنبيهات على المدخلات الحالية.') + '</section>' +
+
+      '<section class="panel report" id="report"><div class="panel-head"><h2>ملخص التقييم</h2><div class="tools no-print">' +
+      (inFrame ? '' : btn('print', 'طباعة / PDF', '', 'ghost')) + btn('copyReport', 'نسخ الملخص نصاً', '', 'ghost') + '</div></div>' +
+      '<dl><dt>العقار</dt><dd>' + esc(cs.name) + '</dd><dt>الموقع</dt><dd>' + esc(cs.location) + '</dd><dt>العميل</dt><dd>' + esc(cs.client) + '</dd><dt>الغرض</dt><dd>' + esc(cs.purpose) + '</dd>' +
+      '<dt>أساس القيمة</dt><dd>' + esc(cs.basis) + '</dd><dt>تاريخ التقييم</dt><dd><bdi>' + esc(cs.valuationDate) + '</bdi></dd><dt>المساحة التأجيرية</dt><dd>' + N(R.noi.gla) + ' م²</dd></dl>' +
+      '<h3>الافتراضات الرئيسية</h3>' + assumptions +
+      '<h3>قائمة صافي الدخل</h3>' + traceList(R.noi.trace) +
+      '<h3>أدلة معدل الرسملة</h3><div class="scroll"><table><thead><tr><th>الصفقة</th><th class="num">الضمني</th><th class="num">المعدل بعد التعديل</th><th>الحالة</th></tr></thead><tbody>' + capEvidence + '</tbody></table></div>' +
+      (m.cap.note ? '<p>' + esc(m.cap.note) + '</p>' : '') +
+      '<h3>نتائج الطرق</h3><ul class="kv"><li>الرسملة المباشرة <b>' + N(R.direct.rounded) + '</b></li><li>DCF <b>' + N(R.dcf.rounded) + '</b></li><li>المقارنات البيعية <b>' + N(R.sales.rounded) + '</b></li>' +
+      '<li>القيمة النهائية <b>' + N(rc.rounded) + '</b></li></ul>' +
+      '<h3>أكثر الافتراضات تأثيراً</h3><ul class="kv">' + t.rows.filter(function (x) { return x.swing; }).slice(0, 5).map(function (x) {
+        return '<li>' + esc(x.label) + ' ±' + x.step + ' ' + x.unit + ' <b>' + P(x.dDown, 1) + ' / ' + P(x.dUp, 1) + '</b></li>';
+      }).join('') + '</ul>' +
+      '<h3>السيناريوهات</h3><ul class="kv">' + sc.list.map(function (s) { return '<li>' + esc(s.name) + ' (' + N(s.prob) + '%) <b>' + N(E.roundTo(s.final, r)) + '</b></li>'; }).join('') + '</ul>' +
+      (m.recon.rationale ? '<h3>مبررات الترجيح</h3><p>' + esc(m.recon.rationale) + '</p>' : '') +
+      (cs.notes ? '<h3>ملاحظات</h3><p>' + esc(cs.notes) + '</p>' : '') + '</section>';
+  }
+
+  // ---------------------------------------------------------------- shell
+  function kpis(R) {
+    var r = state.model.case.rounding;
+    var k = function (tab, label, v, s, cls) { return '<button type="button" class="kpi ' + (cls || '') + '" data-action="tab" data-tab="' + tab + '"><span class="k">' + label + '</span><span class="v">' + v + '</span><span class="s">' + (s || '&nbsp;') + '</span></button>'; };
+    return '<div class="strip">' +
+      k('noi', 'صافي الدخل NOI', N(R.noi.noi), R.noi.overridden ? 'تجاوز مهني' : 'EGI ' + N(R.noi.egi)) +
+      k('cap', 'معدل الرسملة', P(R.cap.selected / 100), P(R.cap.low / 100) + ' – ' + P(R.cap.high / 100)) +
+      k('direct', 'الرسملة المباشرة', N(R.direct.rounded), N(E.roundTo(R.direct.low, r)) + ' – ' + N(E.roundTo(R.direct.high, r))) +
+      k('dcf', 'DCF', N(R.dcf.rounded), N(E.roundTo(R.dcf.low, r)) + ' – ' + N(E.roundTo(R.dcf.high, r))) +
+      k('sales', 'المقارنات البيعية', N(R.sales.rounded), N(R.sales.rate) + ' /م²') +
+      k('report', 'القيمة النهائية', N(R.recon.rounded), N(R.recon.low) + ' – ' + N(R.recon.high), 'final') +
+      k('report', 'تنبيهات', String(R.warnings.length), R.warnings.length ? 'راجعها قبل الاعتماد' : 'لا توجد', R.warnings.length ? 'alerts' : '') +
+      '</div>';
+  }
+
+  function modal() {
+    var md = state.ui.modal;
+    if (!md) return '';
+    var body = '';
+    if (md.type === 'paste') {
+      body = '<h2>لصق بيانات من Excel أو CSV</h2><p class="hint">انسخ الصفوف مع سطر العناوين من Excel والصقها هنا. تتعرف الأداة على العناوين العربية والإنجليزية (الوصف، الفئة، الإيجار، السعر، المساحة، صافي الدخل، معدل الرسملة، الفترة، التاريخ، الوزن). بدون عناوين يُفترض ترتيب: ' +
+        (md.kind === 'cap' ? 'الوصف، السعر، NOI، المعدل' : md.kind === 'sales' ? 'الوصف، السعر، المساحة' : 'الوصف، الفئة، الإيجار، المساحة') + '.</p>' +
+        '<textarea id="paste-text" aria-label="البيانات الملصقة"></textarea><div class="tools">' + btn('doPaste', 'إضافة الصفوف') + btn('closeModal', 'إلغاء', '', 'ghost') + '</div>';
+    } else if (md.type === 'export') {
+      body = '<h2>تصدير الحالة</h2><p class="hint">احفظ هذا النص في ملف .json لاسترجاع الحالة لاحقاً أو مشاركتها.</p><textarea id="export-text" readonly>' + esc(JSON.stringify(state.model, null, 1)) + '</textarea><div class="tools">' +
+        btn('copyExport', 'نسخ') + (inFrame ? '' : btn('downloadExport', 'تنزيل ملف', '', 'ghost')) + btn('closeModal', 'إغلاق', '', 'ghost') + '</div>';
+    } else if (md.type === 'import') {
+      body = '<h2>استيراد حالة</h2><p class="hint">اختر ملف JSON سبق تصديره، أو الصق محتواه.</p><input type="file" id="import-file" accept=".json,application/json"><textarea id="import-text" aria-label="نص الحالة"></textarea>' +
+        '<div class="tools">' + btn('doImport', 'استيراد') + btn('closeModal', 'إلغاء', '', 'ghost') + '</div>';
+    }
+    return '<div class="modal-bg" data-action="bgClose"><div class="modal" role="dialog" aria-modal="true">' + body + '</div></div>';
+  }
+
+  function datalist() {
+    var cats = {};
+    (state.model.rentComps.rows || []).forEach(function (r) { if (r.category) cats[r.category] = 1; });
+    (state.model.income.units || []).forEach(function (r) { if (r.category) cats[r.category] = 1; });
+    return '<datalist id="cats">' + Object.keys(cats).map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>';
+  }
+
+  var TAB_FN = { case: tabCase, rent: tabRent, noi: tabNOI, cap: tabCap, direct: tabDirect, dcf: tabDCF, sales: tabSales, sens: tabSens, report: tabReport };
+
+  function render() {
+    var a = document.activeElement, fp = null, ss = null, se = null;
+    if (a && a.dataset && a.dataset.path) { fp = a.dataset.path; try { ss = a.selectionStart; se = a.selectionEnd; } catch (e) { /* select */ } }
+    var scrolls = Array.prototype.map.call(root.querySelectorAll('.scroll'), function (el) { return el.scrollLeft; });
+    var R;
+    try { R = E.runAll(state.model); } catch (err) { root.innerHTML = '<div class="panel"><h2>تعذر الحساب</h2><p>' + esc(err.message) + '</p>' + btn('loadSample', 'تحميل الحالة النموذجية') + '</div>'; console.error(err); return; }
+    var c = state.ui.confirm;
+    var confirmBar = c ? '<span class="chip warn">' + (c === 'newCase' ? 'سيتم مسح الحالة الحالية' : 'سيتم استبدال الحالة الحالية بالنموذج') + '</span>' + btn(c, 'تأكيد', 'data-confirmed="1"', 'sm') + btn('cancelConfirm', 'إلغاء', '', 'ghost sm') : '';
+    root.innerHTML =
+      '<header class="top"><div class="brand"><span class="eyebrow">مُقيِّم الدخل · أداة تقييم عقاري</span><h1>' + esc(state.model.case.name || 'حالة بدون اسم') + '</h1></div>' +
+      '<div class="actions">' + (confirmBar || btn('newCase', 'حالة جديدة', '', 'ghost') + btn('loadSample', 'الحالة النموذجية', '', 'ghost') + btn('openExport', 'تصدير الحالة', '', 'ghost') + btn('openImport', 'استيراد حالة', '', 'ghost')) + '</div></header>' +
+      kpis(R) +
+      '<nav class="steps" aria-label="مراحل التقييم">' + TABS.map(function (t, i) { return '<button type="button" data-action="tab" data-tab="' + t[0] + '"' + (state.tab === t[0] ? ' aria-current="page"' : '') + '><span class="n">' + (i + 1) + '</span>' + t[1] + '</button>'; }).join('') + '</nav>' +
+      '<main class="view">' + (TAB_FN[state.tab] || tabCase)(R) + '</main>' + datalist() + modal() +
+      (state.ui.toast ? '<div class="toast" role="status">' + esc(state.ui.toast) + '</div>' : '');
+    Array.prototype.forEach.call(root.querySelectorAll('.scroll'), function (el, i) { if (scrolls[i]) el.scrollLeft = scrolls[i]; });
+    if (fp) {
+      var el = root.querySelector('[data-path="' + (window.CSS && CSS.escape ? CSS.escape(fp) : fp) + '"]');
+      if (el) { el.focus({ preventScroll: true }); try { if (ss !== null) el.setSelectionRange(ss, se); } catch (e) { /* not text */ } }
+    }
+    save();
+  }
+
+  var pending = false;
+  function scheduleRender() { if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; render(); }); }
+  var toastTimer;
+  function toast(msg) { state.ui.toast = msg; render(); clearTimeout(toastTimer); toastTimer = setTimeout(function () { state.ui.toast = ''; render(); }, 2600); }
+
+  function copyText(text, okMsg) {
+    var done = function () { toast(okMsg || 'تم النسخ'); };
+    var fallback = function () {
+      var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta); toast(ok ? (okMsg || 'تم النسخ') : 'تعذر النسخ التلقائي؛ حدد النص وانسخه يدوياً');
+    };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  }
+
+  function tableToTSV(id) {
+    var t = document.getElementById(id); if (!t) return '';
+    return Array.prototype.map.call(t.rows, function (tr) {
+      return Array.prototype.map.call(tr.cells, function (td) {
+        if (td.classList.contains('rowact')) return null;
+        var ins = td.querySelectorAll('input:not([type=checkbox]), select');
+        var cb = td.querySelector('input[type=checkbox]');
+        var txt = cb && !ins.length ? (cb.checked ? '✓' : '') : ins.length ? Array.prototype.map.call(ins, function (x) { return x.tagName === 'SELECT' ? x.options[x.selectedIndex].text : x.value; }).join(' ') : td.innerText;
+        return txt.replace(/[\t\n]+/g, ' ').trim();
+      }).filter(function (x) { return x !== null; }).join('\t');
+    }).join('\n');
+  }
+
+  function reportText() {
+    var el = document.getElementById('report');
+    return el ? el.innerText.replace(/\n{3,}/g, '\n\n') : '';
+  }
+
+  // -------------------------------------------------------------- actions
+  var actions = {
+    tab: function (d) { state.tab = d.tab; try { history.replaceState(null, '', '#' + d.tab); } catch (e) { /* frame */ } render(); window.scrollTo(0, 0); },
+    addRow: function (d) { var l = get(d.list); if (!Array.isArray(l)) { set(d.list, []); l = get(d.list); } l.push(TPL[d.tpl]()); render(); },
+    delRow: function (d) { var l = get(d.list); l.splice(+d.i, 1); render(); },
+    newCase: function (d) { if (!d.confirmed) { state.ui.confirm = 'newCase'; return render(); } state.ui.confirm = null; state.model = S.empty(); state.tab = 'case'; toast('بدأت حالة جديدة'); },
+    loadSample: function (d) { if (!d.confirmed) { state.ui.confirm = 'loadSample'; return render(); } state.ui.confirm = null; state.model = S.sample(); toast('تم تحميل الحالة النموذجية'); },
+    cancelConfirm: function () { state.ui.confirm = null; render(); },
+    openPaste: function (d) { state.ui.modal = { type: 'paste', target: d.target, kind: d.kind }; render(); var t = document.getElementById('paste-text'); if (t) t.focus(); },
+    doPaste: function () {
+      var md = state.ui.modal, text = (document.getElementById('paste-text') || {}).value || '';
+      var res = E.importRows(text, md.kind);
+      var list = get(md.target) || [];
+      res.rows.forEach(function (r) { var tpl = TPL[md.kind === 'rent' ? 'rentComp' : md.kind === 'sales' ? 'saleComp' : 'capComp'](); list.push(Object.assign(tpl, r, { adj: Object.assign(tpl.adj || {}, r.adj || {}) })); });
+      set(md.target, list);
+      state.ui.modal = null;
+      toast('أضيف ' + res.rows.length + ' صف' + (res.skipped ? ' · تجاهل ' + res.skipped + ' صف بدون قيمة صالحة' : ''));
+    },
+    openExport: function () { state.ui.modal = { type: 'export' }; render(); },
+    copyExport: function () { copyText(JSON.stringify(state.model, null, 1), 'تم نسخ الحالة'); },
+    downloadExport: function () {
+      var blob = new Blob([JSON.stringify(state.model, null, 1)], { type: 'application/json' });
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (state.model.case.name || 'valuation').replace(/[\\/:*?"<>|]/g, '_') + '.json';
+      document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    },
+    openImport: function () { state.ui.modal = { type: 'import' }; render(); },
+    doImport: function () {
+      var text = (document.getElementById('import-text') || {}).value || '';
+      try {
+        var m = JSON.parse(text);
+        if (!m || !m.case || !m.income) throw new Error('shape');
+        var base = S.sample();
+        Object.keys(base).forEach(function (k) { if (m[k] === undefined) m[k] = base[k]; });
+        state.model = m; state.ui.modal = null; toast('تم استيراد الحالة');
+      } catch (e) { toast('الملف ليس حالة صالحة من هذه الأداة'); }
+    },
+    closeModal: function () { state.ui.modal = null; render(); },
+    bgClose: function (d, el, ev) { if (ev.target === el) { state.ui.modal = null; render(); } },
+    copyTable: function (d) { copyText(tableToTSV(d.table), 'تم نسخ الجدول — الصقه في Excel'); },
+    copyReport: function () { copyText(reportText(), 'تم نسخ الملخص'); },
+    print: function () { window.print(); },
+    useDiscount: function () { var v = E.computeCapRate(state.model).methods.buildup.discount; if (isNum(v)) { state.model.dcf.discountRate = v.toFixed(2); toast('تم تحديث معدل الخصم إلى ' + v.toFixed(2) + '%'); } }
+  };
+
+  // --------------------------------------------------------------- events
+  root.addEventListener('input', function (e) {
+    var t = e.target;
+    if (!t.dataset || !t.dataset.path || t.type === 'checkbox') return;
+    set(t.dataset.path, t.value);
+    scheduleRender();
+  });
+  root.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.id === 'import-file' && t.files && t.files[0]) {
+      var fr = new FileReader();
+      fr.onload = function () { var ta = document.getElementById('import-text'); if (ta) ta.value = fr.result; };
+      fr.readAsText(t.files[0]);
+      return;
+    }
+    if (!t.dataset || !t.dataset.path) return;
+    set(t.dataset.path, t.type === 'checkbox' ? t.checked : t.value);
+    render();
+  });
+  root.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-action]');
+    if (!b || !actions[b.dataset.action]) return;
+    actions[b.dataset.action](b.dataset, b, e);
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && state.ui.modal) { state.ui.modal = null; render(); } });
+
+  // migrate older saved cases missing newer keys
+  (function migrate() {
+    var base = S.sample();
+    Object.keys(base).forEach(function (k) { if (state.model[k] === undefined) state.model[k] = base[k]; });
+    ['sens', 'cap', 'dcf', 'recon'].forEach(function (k) { Object.keys(base[k]).forEach(function (kk) { if (state.model[k][kk] === undefined) state.model[k][kk] = clone(base[k][kk]); }); });
+  })();
+
+  render();
+})();
+
+</script>
