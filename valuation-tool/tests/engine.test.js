@@ -80,8 +80,12 @@ test('cap rate methods: implied comps, band of investment, build-up', () => {
 test('direct capitalisation value and range', () => {
   const m = S.sample();
   const r = E.runAll(m);
-  close(r.direct.raw, r.noi.noi / (r.cap.selected / 100));
+  assert.equal(r.direct.method, 'market');
+  close(r.direct.raw, r.direct.marketNoi / (r.cap.selected / 100) + r.direct.leaseAdj);
   assert.ok(r.direct.low < r.direct.value && r.direct.value < r.direct.high);
+  m.direct.method = 'asIs';
+  const a = E.runAll(m);
+  close(a.direct.raw, a.noi.noi / (a.cap.selected / 100));
 });
 
 test('DCF: with zero growth and exit cap = discount rate the value equals NOI / r', () => {
@@ -157,4 +161,56 @@ test('sample case runs end to end with finite outputs', () => {
   for (const v of [r.noi.noi, r.cap.selected, r.direct.value, r.dcf.value, r.sales.value, r.recon.value]) assert.ok(Number.isFinite(v));
   const empty = E.runAll(S.empty());
   assert.ok(Array.isArray(empty.warnings));
+});
+
+// ------------------------------------------------------------ leases
+const leaseCase = (unit, extra) => Object.assign({
+  case: { gla: '1' },
+  income: { mode: 'rentroll', rentBasis: 'blended', vacancyPct: '0', collectionLossPct: '0', otherIncome: '0',
+    units: [Object.assign({ units: '1', area: '1', occupied: '1', contractRent: '80', leaseYears: '3', marketSource: 'manual', marketRate: '100' }, unit)] },
+  opex: { mode: 'ratio', ratio: '0' },
+  cap: { selection: 'manual', manual: '8', rows: [] },
+  direct: { method: 'market' },
+  dcf: { years: '10', rentGrowth: '3', expenseGrowth: '0', discountRate: '11', exitCap: '8', sellingCostPct: '0', exitBasis: 'next', timing: 'end' }
+}, extra || {});
+const v = 1 / 1.08;
+
+test('direct cap "market + leases" equals textbook term and reversion', () => {
+  const r = E.runAll(leaseCase({}));
+  close(r.direct.value, 80 * (v + v ** 2 + v ** 3) + (100 / 0.08) * v ** 3, 1e-9);
+  // the as-is method capitalises the contract rent in perpetuity
+  close(E.runAll(leaseCase({}, { direct: { method: 'asIs' } })).direct.value, 80 / 0.08, 1e-9);
+});
+
+test('escalations, re-letting void and letting costs flow into term and reversion', () => {
+  const r = E.runAll(leaseCase({ escPct: '10', escEvery: '1', voidMonths: '6', leasingMonths: '1' }));
+  const hand = 80 * v + 88 * v ** 2 + 96.8 * v ** 3 + (-50 - 100 / 12) * v ** 4 + 1250 * v ** 3;
+  close(r.direct.value, hand, 1e-9);
+});
+
+test('escalation every N years steps the contract rent', () => {
+  const m = leaseCase({ escPct: '5', escEvery: '2', leaseYears: '10' });
+  const pgi = [1, 2, 3, 4, 5].map((y) => E.computeRentRoll(m, null, y).totals.pgi);
+  assert.deepEqual(pgi.map((x) => +x.toFixed(4)), [80, 80, 84, 84, 88.2]);
+});
+
+test('DCF: contract rents stay fixed, market growth applies only after expiry', () => {
+  const r = E.runAll(leaseCase({ voidMonths: '6', leasingMonths: '1' }));
+  const rows = r.dcf.rows;
+  assert.deepEqual(rows.slice(0, 3).map((x) => x.pgi), [80, 80, 80]);
+  close(rows[3].pgi, 100 * 1.03 ** 3);
+  close(rows[3].relet, 100 * 1.03 ** 3 / 2);
+  close(rows[3].leasing, 100 * 1.03 ** 3 / 12);
+  close(rows[3].cf, rows[3].noi - rows[3].leasing);
+  assert.equal(rows[4].relet, 0);
+});
+
+test('lease adjustment is zero when contract equals market', () => {
+  const r = E.runAll(leaseCase({ contractRent: '100' }));
+  close(r.direct.value, 1250, 1e-9);
+});
+
+test('rows without an expiry keep their difference in perpetuity (market+leases = as-is)', () => {
+  const r = E.runAll(leaseCase({ leaseYears: '' }));
+  close(r.direct.value, 80 / 0.08, 1e-9);
 });

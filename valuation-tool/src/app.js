@@ -63,7 +63,7 @@
 
   var TPL = {
     rentComp: function () { return { label: '', category: '', rent: '', area: '', period: 'annual', basis: 'total', date: '', include: true, weight: '1', adj: S.adj() }; },
-    unit: function () { return { label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', marketSource: 'comps', marketRate: '', basis: 'default' }; },
+    unit: function () { return { label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', escPct: '', escEvery: '', voidMonths: '', leasingMonths: '', marketSource: 'comps', marketRate: '', basis: 'default' }; },
     opexLine: function () { return { label: '', basis: 'fixed', amount: '' }; },
     capComp: function () { return { label: '', price: '', noi: '', capRate: '', date: '', include: true, weight: '1', adjPts: '0' }; },
     saleComp: function () { return { label: '', price: '', area: '', basis: 'total', date: '', include: true, weight: '1', adj: S.adj() }; },
@@ -230,6 +230,10 @@
       { h: 'المؤجر', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.occupied', { num: 1 }); } },
       { h: 'الإيجار التعاقدي للوحدة', cls: 'w-s', f: function (r, i, p) { return inp(p + '.contractRent', { num: 1 }); } },
       { h: 'سنوات متبقية بالعقد', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.leaseYears', { num: 1, ph: '∞' }); } },
+      { h: 'زيادة دورية %', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.escPct', { num: 1, ph: '0' }); } },
+      { h: 'كل (سنة)', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.escEvery', { num: 1, ph: '1' }); } },
+      { h: 'شغور عند الانتهاء (شهر)', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.voidMonths', { num: 1, ph: '0' }); } },
+      { h: 'تكلفة تأجير (شهر)', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.leasingMonths', { num: 1, ph: '0' }); } },
       { h: 'مصدر الإيجار السوقي', cls: 'w-s', f: function (r, i, p) { return sel(p + '.marketSource', [['comps', 'من المقارنات'], ['manual', 'يدوي (م²)']]); } },
       { h: 'السوقي ر.س/م²', cls: 'w-s', f: function (r, i, p) { return r.marketSource === 'comps' ? '<span class="chip link">' + N(rr.rows[i] && rr.rows[i].marketRate) + '</span>' : inp(p + '.marketRate', { num: 1 }); } },
       { h: 'أساس الدخل', cls: 'w-s', f: function (r, i, p) { return sel(p + '.basis', [['default', 'الافتراضي'], ['blended', 'تعاقدي للمؤجر + سوقي للشاغر'], ['contract', 'تعاقدي'], ['market', 'سوقي']]); } },
@@ -238,7 +242,7 @@
       { h: 'الدخل المحتمل PGI', num: 1, cls: 'computed', f: function (r, i) { return N(rr.rows[i] && rr.rows[i].pgi); } }
     ];
     var foot = '<tfoot><tr><td>الإجمالي</td><td></td><td class="num">' + N(rr.totals.units) + '</td><td class="num">' + N(rr.totals.area) + ' م²</td><td class="num">' + N(rr.totals.occupied) +
-      '</td><td colspan="7">الإشغال الفعلي ' + P(rr.totals.physicalOccupancy, 1) + ' · الإيجار السوقي الكامل ' + N(rr.totals.marketTotal) + ' · التعاقدي ' + N(rr.totals.contractTotal) + '</td><td class="num">' + N(rr.totals.pgi) + '</td><td></td></tr></tfoot>';
+      '</td><td colspan="11">الإشغال الفعلي ' + P(rr.totals.physicalOccupancy, 1) + ' · الإيجار السوقي الكامل ' + N(rr.totals.marketTotal) + ' · التعاقدي ' + N(rr.totals.contractTotal) + '</td><td class="num">' + N(rr.totals.pgi) + '</td><td></td></tr></tfoot>';
 
     var opCols = [
       { h: 'البند', cls: 'w-l', f: function (r, i, p) { return inp(p + '.label'); } },
@@ -252,7 +256,9 @@
     var stmt = [
       ['إجمالي الدخل المحتمل PGI', n.pgi, 'sub'], ['خسارة الشغور (' + P(n.vacancyPct, 1) + ')', -n.vacancyLoss], ['خسارة التحصيل (' + P(n.collectionPct, 1) + ')', -n.collectionLoss],
       ['دخل آخر (مواقف، لوحات، خدمات)', n.otherIncome], ['الدخل الفعلي الإجمالي EGI', n.egi, 'sub']
-    ].concat(n.opexLines.map(function (l) { return ['  ' + (l.label || 'مصروف'), -l.amount]; })).concat([
+    ];
+    if (n.relettingLoss) stmt.splice(3, 0, ['فاقد إعادة التأجير عند انتهاء العقود', -n.relettingLoss]);
+    stmt = stmt.concat(n.opexLines.map(function (l) { return ['  ' + (l.label || 'مصروف'), -l.amount]; })).concat([
       ['إجمالي المصروفات التشغيلية (' + P(n.opexRatio, 1) + ' من EGI)', -n.opex, 'sub'], ['صافي الدخل التشغيلي المحسوب', n.noiComputed, 'sub']
     ]);
     if (n.overridden) stmt.push(['تجاوز مهني', n.noi - n.noiComputed]);
@@ -265,7 +271,7 @@
         field('الإيجار التعاقدي مدخل', sel('income.contractPeriod', [['annual', 'سنوياً للوحدة'], ['monthly', 'شهرياً للوحدة']]))) +
       '</div>' + (direct ? '' : '<div class="panel-head"><h3>جدول الوحدات Rent Roll</h3><div class="tools">' + btn('addRow', 'إضافة صف', 'data-list="income.units" data-tpl="unit"', 'ghost') + '</div></div>' +
         editTable('income.units', cols, { id: 't-units', foot: foot }) +
-        '<p class="hint">«سنوات متبقية بالعقد»: بعد انتهائها يتحول الصف إلى الإيجار السوقي في DCF. اتركه فارغاً لإبقاء العقد طوال الفترة.</p>') +
+        '<p class="hint">«سنوات متبقية بالعقد»: بعد انتهائها يتحول الصف إلى الإيجار السوقي، مع فاقد شغور وتكلفة تأجير في سنة إعادة التأجير. الزيادة الدورية تُطبق على الإيجار التعاقدي فقط، ونمو السوق في DCF يُطبق على الإيجار السوقي فقط. اترك المدة فارغة لإبقاء العقد دائماً.</p>') +
       '</section>' +
       '<div class="cols"><section class="panel"><div class="panel-head"><h2>الشغور والتحصيل والدخل الآخر</h2></div><div class="form">' +
       field('نسبة الشغور والفاقد %', inp('income.vacancyPct', { num: 1 }), 'من إجمالي الدخل المحتمل') +
@@ -349,17 +355,29 @@
 
   // ----------------------------------------------------------- tab: direct
   function tabDirect(R) {
-    var d = R.direct, n = R.noi, c = R.cap, r = state.model.case.rounding;
+    var d = R.direct, n = R.noi, c = R.cap, r = state.model.case.rounding, m = state.model;
     var steps = [-100, -75, -50, -25, 0, 25, 50, 75, 100];
+    var vals = steps.map(function (s) { return s === 0 ? d.value : E.runAll(E.withShocks(m, { capBps: s }), { skipRange: true }).direct.value; });
     var tbl = '<div class="scroll"><table id="t-dsteps"><thead><tr><th>معدل الرسملة</th>' + steps.map(function (s) { return '<th class="num">' + (c.selected + s / 100).toFixed(2) + '%</th>'; }).join('') + '</tr></thead><tbody><tr><td>القيمة</td>' +
-      steps.map(function (s) { return '<td class="num' + (s === 0 ? ' computed' : '') + '">' + N(E.roundTo(n.noi / ((c.selected + s / 100) / 100) + d.adjSum, r)) + '</td>'; }).join('') + '</tr><tr><td>التغير</td>' +
-      steps.map(function (s) { var v = n.noi / ((c.selected + s / 100) / 100) + d.adjSum; return '<td class="num">' + P(v / d.value - 1, 1) + '</td>'; }).join('') + '</tr></tbody></table></div>';
+      vals.map(function (v, i) { return '<td class="num' + (steps[i] === 0 ? ' computed' : '') + '">' + N(E.roundTo(v, r)) + '</td>'; }).join('') + '</tr><tr><td>التغير</td>' +
+      vals.map(function (v) { return '<td class="num">' + P(v / d.value - 1, 1) + '</td>'; }).join('') + '</tr></tbody></table></div>';
+    var hasLeases = m.income.mode !== 'direct' && (m.income.units || []).some(function (u) { return E.num(u.contractRent) > 0; });
+    var ld = d.leaseDetail;
+    var leaseTbl = d.method === 'market' && ld && ld.years.length ? '<div class="scroll"><table class="stmt" id="t-lease"><thead><tr><th>السنة</th><th class="num">NOI حسب العقود</th><th class="num">تكلفة إعادة التأجير</th><th class="num">NOI بالإيجار السوقي</th><th class="num">الفرق</th><th class="num">القيمة الحالية</th></tr></thead><tbody>' +
+      ld.years.map(function (y) { return '<tr><td>' + (y.year === 'perp' ? 'ما بعد ذلك (دائم)' : 'سنة ' + y.year) + '</td><td class="num">' + N(y.asIs) + '</td><td class="num neg">' + N(-y.leasing) + '</td><td class="num">' + N(y.market) + '</td><td class="num ' + (y.diff < 0 ? 'neg' : '') + '">' + N(y.diff) + '</td><td class="num">' + N(y.pv) + '</td></tr>'; }).join('') +
+      '</tbody><tfoot><tr><td colspan="5">تسوية العقود القائمة</td><td class="num">' + N(d.leaseAdj) + '</td></tr></tfoot></table></div>' : '';
+    var methodPanel = hasLeases ? '<section class="panel"><div class="panel-head"><h2>أساس الرسملة للعقار المؤجر</h2><div class="tools">' + (leaseTbl ? btn('copyTable', 'نسخ', 'data-table="t-lease"', 'ghost') : '') + '</div></div><div class="form">' +
+      field('الطريقة', sel('direct.method', [['market', 'سوقي + تسوية العقود (المدة والارتداد)'], ['asIs', 'رسملة الدخل الحالي كما هو']])) +
+      (m.direct.method === 'market' ? field('معدل خصم فروق العقود %', inp('direct.leaseRate', { num: 1, ph: 'فارغ = معدل الرسملة' }), 'معدل أقل من معدل الرسملة يعكس أمان الإيجار التعاقدي') : '') + '</div>' +
+      '<p class="hint">«سوقي + تسوية العقود» يرسمل الدخل بالإيجار السوقي لكل الوحدات، ثم يضيف القيمة الحالية لفرق الدخل التعاقدي عن السوقي حتى انتهاء كل عقد، شاملاً الزيادات الدورية وفاقد وتكاليف إعادة التأجير. عند تساوي معدل الخصم مع معدل الرسملة تطابق النتيجة طريقة المدة والارتداد. «كما هو» يرسمل الإيجار التعاقدي كأنه دائم.</p>' +
+      leaseTbl + warnList(d.warnings) + '</section>' : '';
     return '<section class="panel"><div class="panel-head"><h2>الرسملة المباشرة</h2></div>' +
       '<div class="result"><span class="lab">القيمة (' + esc(cur()) + ')</span><span class="big">' + N(d.rounded) + '</span><span class="lab">النطاق ' + N(E.roundTo(d.low, r)) + ' – ' + N(E.roundTo(d.high, r)) + '</span></div>' +
-      '<ul class="kv"><li>صافي الدخل التشغيلي NOI <b>' + N(n.noi) + '</b></li><li>معدل الرسملة <b>' + P(c.selected / 100) + '</b></li>' +
+      '<ul class="kv"><li>' + (d.method === 'market' ? 'NOI بالإيجار السوقي' : 'صافي الدخل التشغيلي NOI') + ' <b>' + N(d.method === 'market' ? d.marketNoi : n.noi) + '</b></li><li>معدل الرسملة <b>' + P(c.selected / 100) + '</b></li>' +
+      (d.method === 'market' ? '<li>تسوية العقود القائمة <b>' + N(d.leaseAdj) + '</b></li><li>NOI الحالي حسب العقود <b>' + N(n.noi) + '</b></li>' : '') +
       '<li>القيمة للمتر المربع GLA <b>' + N(d.perM2) + '</b></li><li>مضاعف الدخل الفعلي EGIM <b>' + N(d.multiplier, 2) + '</b></li>' +
       '<li>العائد على القيمة المقربة <b>' + P(n.noi / d.rounded) + '</b></li><li>تعديلات بعد الرسملة <b>' + N(d.adjSum) + '</b></li></ul>' +
-      traceList(d.trace) + '</section>' +
+      traceList(d.trace) + '</section>' + methodPanel +
       '<section class="panel"><div class="panel-head"><h2>تعديلات بعد الرسملة</h2><div class="tools">' + btn('addRow', 'إضافة تعديل', 'data-list="direct.adjustments" data-tpl="adjustment"', 'ghost') + '</div></div>' +
       '<p class="hint">مبالغ تُضاف أو تُطرح من القيمة المرسملة: مصروفات رأسمالية مؤجلة، تكاليف تأجير، فرق إيجار أقل من السوق، أرض زائدة. أدخل الطرح بإشارة سالبة.</p>' +
       editTable('direct.adjustments', [
@@ -372,16 +390,17 @@
   function tabDCF(R) {
     var d = R.dcf, c = R.cap, bu = c.methods.buildup;
     var rowsDef = [
-      ['إجمالي الدخل المحتمل', 'pgi'], ['شغور وتحصيل', 'vacancyLoss', -1], ['دخل آخر', 'other'], ['الدخل الفعلي EGI', 'egi', 1, 'sub'], ['المصروفات التشغيلية', 'opex', -1],
-      ['تعديل التجاوز المهني', 'overrideAdj'], ['صافي الدخل NOI', 'noi', 1, 'sub'], ['مصروفات رأسمالية', 'capex', -1], ['صافي التدفق النقدي', 'cf', 1, 'sub'],
+      ['إجمالي الدخل المحتمل', 'pgi'], ['شغور وتحصيل', 'vacancyLoss', -1], ['فاقد إعادة التأجير', 'relet', -1], ['دخل آخر', 'other'], ['الدخل الفعلي EGI', 'egi', 1, 'sub'], ['المصروفات التشغيلية', 'opex', -1],
+      ['تعديل التجاوز المهني', 'overrideAdj'], ['صافي الدخل NOI', 'noi', 1, 'sub'], ['مصروفات رأسمالية', 'capex', -1], ['تكاليف إعادة التأجير', 'leasing', -1], ['صافي التدفق النقدي', 'cf', 1, 'sub'],
       ['معامل الخصم', 'df', 1, '', 4], ['القيمة الحالية', 'pv', 1, 'total']
     ];
     if (!R.noi.overridden) rowsDef = rowsDef.filter(function (x) { return x[1] !== 'overrideAdj'; });
+    ['relet', 'leasing'].forEach(function (k) { if (!d.rows.some(function (y) { return y[k]; })) rowsDef = rowsDef.filter(function (x) { return x[1] !== k; }); });
     var yrs = d.rows.concat([d.forward]);
     var table = '<div class="scroll"><table class="stmt" id="t-dcf"><thead><tr><th>البند / السنة</th>' + yrs.map(function (y, i) { return '<th class="num">' + (i === d.rows.length ? 'سنة ' + y.year + ' (للتخارج)' : 'سنة ' + y.year) + '</th>'; }).join('') + '</tr></thead><tbody>' +
       rowsDef.map(function (rd) {
         return '<tr class="' + (rd[3] || '') + '"><td>' + rd[0] + '</td>' + yrs.map(function (y, i) {
-          if (i === d.rows.length && ['df', 'pv', 'cf', 'capex'].indexOf(rd[1]) >= 0) return '<td></td>';
+          if (i === d.rows.length && ['df', 'pv', 'cf', 'capex', 'leasing'].indexOf(rd[1]) >= 0) return '<td></td>';
           var v = y[rd[1]] * (rd[2] || 1);
           return '<td class="num ' + (v < 0 ? 'neg' : '') + '">' + (rd[4] ? v.toFixed(rd[4]) : N(v)) + '</td>';
         }).join('') + '</tr>';
@@ -535,6 +554,7 @@
     var basisLabel = { blended: 'تعاقدي للمؤجر + سوقي للشاغر', market: 'سوقي بالكامل', contract: 'تعاقدي بالكامل' }[m.income.rentBasis] || '';
     var assumptions = '<ul class="kv">' + rentCats +
       '<li>أساس الدخل <b>' + (m.income.mode === 'direct' ? 'PGI مدخل مباشرة' : basisLabel) + '</b></li>' +
+      '<li>أساس الرسملة المباشرة <b>' + (R.direct.method === 'market' ? 'سوقي + تسوية العقود (' + N(R.direct.leaseAdj) + ')' : 'الدخل الحالي كما هو') + '</b></li>' +
       '<li>الدخل المحتمل PGI <b>' + N(R.noi.pgi) + '</b></li><li>الشغور / التحصيل <b>' + P(R.noi.vacancyPct, 1) + ' / ' + P(R.noi.collectionPct, 1) + '</b></li>' +
       '<li>الدخل الفعلي EGI <b>' + N(R.noi.egi) + '</b></li><li>نسبة المصروفات <b>' + P(R.noi.opexRatio, 1) + '</b></li>' +
       '<li>صافي الدخل NOI' + (R.noi.overridden ? ' (مُتجاوز)' : '') + ' <b>' + N(R.noi.noi) + '</b></li><li>معدل الرسملة <b>' + P(R.cap.selected / 100) + ' (' + P(R.cap.low / 100) + ' – ' + P(R.cap.high / 100) + ')</b></li>' +
@@ -742,7 +762,7 @@
   (function migrate() {
     var base = S.sample();
     Object.keys(base).forEach(function (k) { if (state.model[k] === undefined) state.model[k] = base[k]; });
-    ['sens', 'cap', 'dcf', 'recon'].forEach(function (k) { Object.keys(base[k]).forEach(function (kk) { if (state.model[k][kk] === undefined) state.model[k][kk] = clone(base[k][kk]); }); });
+    ['sens', 'cap', 'dcf', 'recon', 'direct'].forEach(function (k) { Object.keys(base[k]).forEach(function (kk) { if (state.model[k][kk] === undefined) state.model[k][kk] = clone(base[k][kk]); }); });
   })();
 
   render();

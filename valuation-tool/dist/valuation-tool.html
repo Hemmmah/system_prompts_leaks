@@ -531,9 +531,17 @@ document.documentElement.setAttribute('dir', 'rtl');
 
   // --------------------------------------------------------------- rent roll
 
-  /** year (1-based) lets contract leases revert to market after u.leaseYears. */
-  function computeRentRoll(model, rentAnalysis, year) {
+  /**
+   * year (1-based): contract rents follow their own escalation schedule and revert to market after
+   * u.leaseYears (whole years). rev: market-rent growth factor for that year (contract rents never use it).
+   * opts.forceMarket: value every unit at market rent (used by the market + lease-adjustment method).
+   * In the first year after expiry the occupied units lose u.voidMonths of rent and incur u.leasingMonths
+   * of market rent as a letting cost.
+   */
+  function computeRentRoll(model, rentAnalysis, year, rev, opts) {
     year = year || 1;
+    rev = isNum(rev) ? rev : 1;
+    opts = opts || {};
     var inc = model.income || {};
     var defBasis = inc.rentBasis || 'blended';
     var contractMult = inc.contractPeriod === 'monthly' ? 12 : 1;
@@ -542,12 +550,21 @@ document.documentElement.setAttribute('dir', 'rtl');
       var units = numOr(u.units, 1), area = num(u.area);
       var occ = clamp(numOr(u.occupied, units), 0, units);
       var rate = u.marketSource === 'comps' && rentAnalysis ? rentAnalysis.rateFor(u.category) : num(u.marketRate);
-      var marketUnit = isNum(num(u.marketRentUnit)) && u.marketSource === 'unit' ? num(u.marketRentUnit) : rate * area;
-      var contractUnit = num(u.contractRent) * contractMult;
-      var leaseYears = num(u.leaseYears);
+      var marketUnit0 = isNum(num(u.marketRentUnit)) && u.marketSource === 'unit' ? num(u.marketRentUnit) : rate * area;
+      var marketUnit = marketUnit0 * rev;
+      var contractBase = num(u.contractRent) * contractMult;
+      var esc = pct(u.escPct, 0), every = Math.max(1, Math.round(numOr(u.escEvery, 1)));
+      var contractUnit = contractBase * Math.pow(1 + esc, Math.floor((year - 1) / every));
+      var leaseYears = Math.round(num(u.leaseYears));
       var expired = isNum(leaseYears) && year > leaseYears;
       var hasContract = isNum(contractUnit) && contractUnit > 0 && !expired;
-      var basis = u.basis && u.basis !== 'default' ? u.basis : defBasis;
+      var basis = opts.forceMarket ? 'market' : (u.basis && u.basis !== 'default' ? u.basis : defBasis);
+      var hadContract = isNum(contractBase) && contractBase > 0 && basis !== 'market';
+      var reletYear = hadContract && isNum(leaseYears) && leaseYears >= 1 && year === leaseYears + 1;
+      var voidM = numOr(u.voidMonths, numOr(inc.voidMonths, 0)), leaseM = numOr(u.leasingMonths, numOr(inc.leasingMonths, 0));
+      var letUnits = basis === 'contract' ? units : occ;
+      var voidLoss = reletYear && isNum(marketUnit) ? letUnits * marketUnit * voidM / 12 * rentShock : 0;
+      var leasingCost = reletYear && isNum(marketUnit) ? letUnits * marketUnit * leaseM / 12 * rentShock : 0;
       var pgi;
       if (basis === 'market') pgi = units * marketUnit;
       else if (basis === 'contract') pgi = units * (hasContract ? contractUnit : marketUnit);
@@ -560,12 +577,13 @@ document.documentElement.setAttribute('dir', 'rtl');
       var contractTotal = hasContract ? units * contractUnit * rentShock : NaN;
       return { label: u.label, category: u.category, units: units, area: area, totalArea: units * (isNum(area) ? area : 0), occupied: occ,
         marketRate: rate, marketUnit: marketUnit, contractUnit: contractUnit, basis: basis, pgi: pgi,
-        marketTotal: marketTotal, contractTotal: contractTotal, expired: expired,
+        marketTotal: marketTotal, contractTotal: contractTotal, expired: expired, leaseYears: leaseYears,
+        voidLoss: voidLoss, leasingCost: leasingCost, reletYear: reletYear,
         reversionGap: hasContract && isNum(marketUnit) ? (marketUnit - contractUnit) / contractUnit : NaN, issues: issues };
     });
-    var t = { pgi: 0, marketTotal: 0, contractTotal: 0, area: 0, units: 0, occupied: 0 };
+    var t = { pgi: 0, marketTotal: 0, contractTotal: 0, area: 0, units: 0, occupied: 0, voidLoss: 0, leasingCost: 0 };
     rows.forEach(function (r) {
-      t.pgi += r.pgi; t.marketTotal += r.marketTotal; t.contractTotal += isNum(r.contractTotal) ? r.contractTotal : 0;
+      t.pgi += r.pgi; t.voidLoss += r.voidLoss; t.leasingCost += r.leasingCost; t.marketTotal += r.marketTotal; t.contractTotal += isNum(r.contractTotal) ? r.contractTotal : 0;
       t.area += r.totalArea; t.units += r.units; t.occupied += r.occupied;
     });
     t.physicalOccupancy = t.units ? t.occupied / t.units : NaN;
@@ -583,11 +601,11 @@ document.documentElement.setAttribute('dir', 'rtl');
     var cs = model.case || {};
     var rev = isNum(factors.revenue) ? factors.revenue : 1;
     var exf = isNum(factors.expense) ? factors.expense : 1;
-    var rr = computeRentRoll(model, rentAnalysis, factors.year);
-    var pgi;
-    if (inc.mode === 'direct') pgi = numOr(inc.pgiDirect, 0) * (1 + sh(model, 'rentPct') / 100);
-    else pgi = rr.totals.pgi;
-    pgi *= rev;
+    var rr = computeRentRoll(model, rentAnalysis, factors.year, rev, { forceMarket: factors.forceMarket });
+    var direct = inc.mode === 'direct';
+    var pgi = direct ? numOr(inc.pgiDirect, 0) * (1 + sh(model, 'rentPct') / 100) * rev : rr.totals.pgi;
+    var relettingLoss = direct ? 0 : rr.totals.voidLoss;
+    var leasingCost = direct ? 0 : rr.totals.leasingCost;
     var gla = numOr(cs.gla, rr.totals.area);
     var vac = isNum(factors.vacancyPct) ? factors.vacancyPct : pct(inc.vacancyPct, 0);
     vac = clamp(vac + sh(model, 'vacancyPts') / 100, 0, 1);
@@ -595,7 +613,7 @@ document.documentElement.setAttribute('dir', 'rtl');
     var coll = pct(inc.collectionLossPct, 0);
     var collectionLoss = (pgi - vacancyLoss) * coll;
     var other = numOr(inc.otherIncome, 0) * rev;
-    var egi = pgi - vacancyLoss - collectionLoss + other;
+    var egi = pgi - vacancyLoss - collectionLoss - relettingLoss + other;
     var op = model.opex || {};
     var opShock = 1 + sh(model, 'opexPct') / 100;
     var lines = [];
@@ -615,7 +633,7 @@ document.documentElement.setAttribute('dir', 'rtl');
     var opex = lines.reduce(function (s, l) { return s + l.amount; }, 0);
     var noi = egi - opex;
     return { rentRoll: rr, pgi: pgi, vacancyPct: vac, vacancyLoss: vacancyLoss, collectionPct: coll, collectionLoss: collectionLoss,
-      otherIncome: other, egi: egi, opexLines: lines, opex: opex, opexRatio: egi ? opex / egi : NaN, noiComputed: noi, noi: noi, gla: gla };
+      otherIncome: other, relettingLoss: relettingLoss, leasingCost: leasingCost, egi: egi, opexLines: lines, opex: opex, opexRatio: egi ? opex / egi : NaN, noiComputed: noi, noi: noi, gla: gla };
   }
 
   /** Year-1 NOI with optional professional override (scaled under shocks so sensitivity still works). */
@@ -635,6 +653,7 @@ document.documentElement.setAttribute('dir', 'rtl');
     trace.push('إجمالي الدخل المحتمل PGI = ' + fmt(r.pgi));
     trace.push('− خسارة الشغور (' + fmtP(r.vacancyPct) + ') = ' + fmt(r.vacancyLoss));
     trace.push('− خسارة التحصيل (' + fmtP(r.collectionPct) + ' من الدخل بعد الشغور) = ' + fmt(r.collectionLoss));
+    if (r.relettingLoss) trace.push('− فاقد إعادة التأجير عند انتهاء العقود = ' + fmt(r.relettingLoss));
     trace.push('+ دخل آخر = ' + fmt(r.otherIncome));
     trace.push('= الدخل الفعلي الإجمالي EGI = ' + fmt(r.egi));
     trace.push('− المصروفات التشغيلية = ' + fmt(r.opex) + ' (' + fmtP(r.opexRatio) + ' من EGI)');
@@ -717,24 +736,76 @@ document.documentElement.setAttribute('dir', 'rtl');
 
   // ------------------------------------------------------ direct capitalisation
 
-  function computeDirectCap(model, noiRes, capRes) {
+  /**
+   * Lease adjustment for the "market + leases" direct capitalisation method.
+   * Capitalising market NOI assumes every unit is let at market rent today. The adjustment adds the
+   * present value, at rate y, of the yearly difference between the NOI actually receivable under the
+   * leases (with escalations, re-letting void and letting costs) and market NOI, until the last lease
+   * expires. Rows with no stated expiry keep their difference forever (capitalised at y).
+   * With y = cap rate this equals the classic term-and-reversion valuation.
+   */
+  function leaseAdjustment(model, rentAnalysis, y) {
+    var units = (model.income || {}).units || [];
+    if ((model.income || {}).mode === 'direct' || !units.length || !(y > 0)) return { total: 0, years: [], horizon: 0 };
+    var H = 0;
+    units.forEach(function (u) { var L = Math.round(num(u.leaseYears)); if (isNum(L) && L + 1 > H) H = L + 1; });
+    H = Math.min(H, 60);
+    var years = [], total = 0;
+    for (var t = 1; t <= H + 1; t++) {
+      var asIs = computeNOI(model, rentAnalysis, { year: t });
+      var mkt = computeNOI(model, rentAnalysis, { year: t, forceMarket: true });
+      var diff = asIs.noiComputed - asIs.leasingCost - mkt.noiComputed;
+      if (t <= H) {
+        var pv = diff / Math.pow(1 + y, t);
+        years.push({ year: t, asIs: asIs.noiComputed, leasing: asIs.leasingCost, market: mkt.noiComputed, diff: diff, pv: pv });
+        total += pv;
+      } else if (Math.abs(diff) > 1e-9) {
+        var tail = diff / y / Math.pow(1 + y, H);
+        years.push({ year: 'perp', asIs: asIs.noiComputed, leasing: 0, market: mkt.noiComputed, diff: diff, pv: tail });
+        total += tail;
+      }
+    }
+    return { total: total, years: years, horizon: H };
+  }
+
+  function computeDirectCap(model, noiRes, capRes, rentAnalysis) {
     var d = model.direct || {};
     var cs = model.case || {};
     var cap = capRes.selected / 100;
     var adjustments = (d.adjustments || []).map(function (a) { return { label: a.label, amount: numOr(a.amount, 0) }; });
     var adjSum = adjustments.reduce(function (s, a) { return s + a.amount; }, 0);
-    var raw = noiRes.noi / cap;
+    var hasLeases = (model.income || {}).mode !== 'direct' && ((model.income || {}).units || []).some(function (u) { return num(u.contractRent) > 0; });
+    var method = d.method === 'market' && hasLeases && !noiRes.overridden ? 'market' : 'asIs';
+    var rateOf = function (c) { var m = pct(d.leaseRate); return isNum(m) && m > 0 ? m : c; };
+    var valueAt = function (c) {
+      if (method === 'asIs') return { cap: noiRes.noi / c, lease: 0, noi: noiRes.noi };
+      var mNoi = computeNOI(model, rentAnalysis, { forceMarket: true }).noiComputed;
+      var la = leaseAdjustment(model, rentAnalysis, rateOf(c));
+      return { cap: mNoi / c, lease: la.total, noi: mNoi, detail: la };
+    };
+    var base = valueAt(cap), lo = valueAt(capRes.high / 100), hi = valueAt(capRes.low / 100);
+    var raw = base.cap + base.lease;
     var value = raw + adjSum;
-    var low = noiRes.noi / (capRes.high / 100) + adjSum;
-    var high = noiRes.noi / (capRes.low / 100) + adjSum;
+    var low = lo.cap + lo.lease + adjSum;
+    var high = hi.cap + hi.lease + adjSum;
     var rounding = cs.rounding;
-    var trace = [
-      'القيمة = NOI ÷ معدل الرسملة = ' + fmtN(noiRes.noi) + ' ÷ ' + fmtP(cap) + ' = ' + fmtN(raw),
+    var trace = method === 'market' ? [
+      'NOI على أساس الإيجار السوقي لكل الوحدات = ' + fmtN(base.noi) + ' ÷ ' + fmtP(cap) + ' = ' + fmtN(base.cap),
+      '+ تسوية العقود القائمة (القيمة الحالية لفرق الدخل التعاقدي عن السوقي حتى انتهاء العقود، شاملة الزيادات وفاقد وتكاليف إعادة التأجير، بمعدل ' + fmtP(rateOf(cap)) + ') = ' + fmtN(base.lease),
+      '= القيمة بطريقة المدة والارتداد = ' + fmtN(raw)
+    ] : [
+      'القيمة = NOI ÷ معدل الرسملة = ' + fmtN(noiRes.noi) + ' ÷ ' + fmtP(cap) + ' = ' + fmtN(raw)
+    ];
+    trace = trace.concat([
       adjSum ? 'تعديلات بعد الرسملة (مصروفات رأسمالية/تأجير/أراضٍ زائدة) = ' + fmtN(adjSum) : 'لا توجد تعديلات بعد الرسملة',
       'القيمة قبل التقريب = ' + fmtN(value) + ' ← بعد التقريب = ' + fmtN(roundTo(value, rounding)),
       'النطاق عند معدل ' + fmtP(capRes.high / 100) + ' – ' + fmtP(capRes.low / 100) + ': ' + fmtN(roundTo(low, rounding)) + ' – ' + fmtN(roundTo(high, rounding))
-    ];
-    return { raw: raw, adjustments: adjustments, adjSum: adjSum, value: value, rounded: roundTo(value, rounding),
+    ]);
+    var warnings = [];
+    if (d.method === 'market' && noiRes.overridden) warnings.push('الرسملة المباشرة: تم تجاوز NOI مهنياً، لذا طُبقت الرسملة على NOI المعتمد بدل طريقة السوق + تسوية العقود.');
+    if (method === 'asIs' && hasLeases && (model.income || {}).rentBasis !== 'market') warnings.push('الرسملة المباشرة ترسمل الإيجارات التعاقدية كأنها دائمة. اختر «سوقي + تسوية العقود» لعقار مؤجر بإيجارات تختلف عن السوق.');
+    return { method: method, marketNoi: base.noi, capitalised: base.cap, leaseAdj: base.lease, leaseDetail: base.detail, warnings: warnings,
+      raw: raw, adjustments: adjustments, adjSum: adjSum, value: value, rounded: roundTo(value, rounding),
       low: low, high: high, perM2: noiRes.gla ? value / noiRes.gla : NaN, multiplier: noiRes.egi ? value / noiRes.egi : NaN, trace: trace,
       valid: isNum(value) && cap > 0 };
   }
@@ -767,9 +838,9 @@ document.documentElement.setAttribute('dir', 'rtl');
       var y = computeNOI(model, rentAnalysis, { revenue: revF, expense: expF, vacancyPct: vacList[t - 1] / 100, year: t });
       var noi = y.noiComputed * overrideFactor;
       var capex = y.egi * capexPct + capexSched[t - 1];
-      var cf = noi - capex;
+      var cf = noi - capex - y.leasingCost;
       var df = 1 / Math.pow(1 + r, t - (mid ? 0.5 : 0));
-      rows.push({ year: t, pgi: y.pgi, vacancyPct: y.vacancyPct, vacancyLoss: y.vacancyLoss + y.collectionLoss, other: y.otherIncome, egi: y.egi, opex: y.opex,
+      rows.push({ year: t, pgi: y.pgi, vacancyPct: y.vacancyPct, vacancyLoss: y.vacancyLoss + y.collectionLoss, relet: y.relettingLoss, leasing: y.leasingCost, other: y.otherIncome, egi: y.egi, opex: y.opex,
         noiComputed: y.noiComputed, overrideAdj: noi - y.noiComputed, noi: noi, capex: capex, cf: cf, df: df, pv: cf * df });
     }
     var hold = rows.slice(0, n);
@@ -863,7 +934,7 @@ document.documentElement.setAttribute('dir', 'rtl');
     var rent = analyzeRentComps(model);
     var noi = computeNOIFinal(model, rent);
     var cap = computeCapRate(model);
-    var direct = computeDirectCap(model, noi, cap);
+    var direct = computeDirectCap(model, noi, cap, rent);
     var dcf = computeDCF(model, rent, noi, cap, { skipRange: opts.skipRange });
     var sales = computeSales(model);
     var recon = reconcile(model, { direct: direct, dcf: dcf, sales: sales });
@@ -871,7 +942,7 @@ document.documentElement.setAttribute('dir', 'rtl');
       rent.categories.length
         ? [].concat.apply([], rent.categories.map(function (c) { return rent.byCategory[c].warnings.map(function (w) { return 'إيجارات «' + c + '»: ' + w; }); }))
         : rent.all.warnings.map(function (w) { return 'الإيجارات المقارنة: ' + w; }),
-      noi.warnings, cap.warnings, dcf.warnings,
+      noi.warnings, cap.warnings, direct.warnings, dcf.warnings,
       sales.analysis.rows.length ? sales.analysis.warnings.map(function (w) { return 'المقارنات البيعية: ' + w; }) : [],
       recon.warnings);
     return { rent: rent, noi: noi, cap: cap, direct: direct, dcf: dcf, sales: sales, recon: recon, warnings: warnings };
@@ -1032,7 +1103,7 @@ document.documentElement.setAttribute('dir', 'rtl');
     normalizeRentComps: normalizeRentComps, normalizeSaleComps: normalizeSaleComps, normalizeCapComps: normalizeCapComps,
     analyzeRentComps: analyzeRentComps, computeRentRoll: computeRentRoll, computeNOI: computeNOI, computeNOIFinal: computeNOIFinal,
     mortgageConstant: mortgageConstant, computeCapRate: computeCapRate, computeDirectCap: computeDirectCap, computeDCF: computeDCF,
-    computeSales: computeSales, reconcile: reconcile, runAll: runAll, withShocks: withShocks,
+    computeSales: computeSales, leaseAdjustment: leaseAdjustment, reconcile: reconcile, runAll: runAll, withShocks: withShocks,
     SHOCKS: SHOCKS, METRICS: METRICS, ADJ_KEYS: ADJ_KEYS, tornado: tornado, grid: grid, scenarios: scenarios, breakEven: breakEven,
     parseTable: parseTable, importRows: importRows, mapColumns: mapColumns, fmtN: fmtN, fmtP: fmtP
   };
@@ -1089,8 +1160,8 @@ document.documentElement.setAttribute('dir', 'rtl');
         mode: 'rentroll', pgiDirect: '', rentBasis: 'blended', contractPeriod: 'annual',
         vacancyPct: '7', collectionLossPct: '2', otherIncome: '60000',
         units: [
-          { label: 'معارض الدور الأرضي', category: 'معارض', units: '6', area: '150', occupied: '6', contractRent: '150000', leaseYears: '2', marketSource: 'comps', marketRate: '', basis: 'default' },
-          { label: 'مكاتب الأدوار العلوية', category: 'مكاتب', units: '24', area: '120', occupied: '20', contractRent: '72000', leaseYears: '1', marketSource: 'comps', marketRate: '', basis: 'default' }
+          { label: 'معارض الدور الأرضي', category: 'معارض', units: '6', area: '150', occupied: '6', contractRent: '150000', leaseYears: '4', escPct: '5', escEvery: '2', voidMonths: '3', leasingMonths: '1', marketSource: 'comps', marketRate: '', basis: 'default' },
+          { label: 'مكاتب الأدوار العلوية', category: 'مكاتب', units: '24', area: '120', occupied: '20', contractRent: '72000', leaseYears: '2', escPct: '', escEvery: '', voidMonths: '4', leasingMonths: '1', marketSource: 'comps', marketRate: '', basis: 'default' }
         ]
       },
       opex: {
@@ -1127,7 +1198,7 @@ document.documentElement.setAttribute('dir', 'rtl');
         survey: { value: '7.5', low: '7', high: '8', source: 'تقرير سوق المكاتب — الربع الثاني 2026 (أدخل المصدر الفعلي)' },
         weights: { comps: '60', band: '10', buildup: '10', survey: '20' }
       },
-      direct: { adjustments: [
+      direct: { method: 'market', leaseRate: '', adjustments: [
         { label: 'تكاليف تأجير الوحدات الشاغرة (عمولة + فترة مجانية)', amount: '-120000' }
       ] },
       dcf: {
@@ -1158,7 +1229,7 @@ document.documentElement.setAttribute('dir', 'rtl');
     var m = sample();
     m.case = { name: 'حالة جديدة', client: '', purpose: '', basis: 'القيمة السوقية', propertyType: '', location: '', deed: '', valuationDate: new Date().toISOString().slice(0, 10), inspectionDate: '', landArea: '', gla: '', currency: 'ر.س', rounding: '10000', appraiser: '', notes: '' };
     m.rentComps.rows = []; m.rentComps.overrides = {};
-    m.income.units = [{ label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', marketSource: 'manual', marketRate: '', basis: 'default' }];
+    m.income.units = [{ label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', escPct: '', escEvery: '', voidMonths: '', leasingMonths: '', marketSource: 'manual', marketRate: '', basis: 'default' }];
     m.income.otherIncome = '0';
     m.opex.lines.forEach(function (l) { if (l.basis === 'fixed' || l.basis === 'perM2') l.amount = ''; });
     m.cap.rows = []; m.cap.survey = { value: '', low: '', high: '', source: '' }; m.cap.selection = 'manual'; m.cap.manual = '';
@@ -1238,7 +1309,7 @@ document.documentElement.setAttribute('dir', 'rtl');
 
   var TPL = {
     rentComp: function () { return { label: '', category: '', rent: '', area: '', period: 'annual', basis: 'total', date: '', include: true, weight: '1', adj: S.adj() }; },
-    unit: function () { return { label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', marketSource: 'comps', marketRate: '', basis: 'default' }; },
+    unit: function () { return { label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', escPct: '', escEvery: '', voidMonths: '', leasingMonths: '', marketSource: 'comps', marketRate: '', basis: 'default' }; },
     opexLine: function () { return { label: '', basis: 'fixed', amount: '' }; },
     capComp: function () { return { label: '', price: '', noi: '', capRate: '', date: '', include: true, weight: '1', adjPts: '0' }; },
     saleComp: function () { return { label: '', price: '', area: '', basis: 'total', date: '', include: true, weight: '1', adj: S.adj() }; },
@@ -1405,6 +1476,10 @@ document.documentElement.setAttribute('dir', 'rtl');
       { h: 'المؤجر', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.occupied', { num: 1 }); } },
       { h: 'الإيجار التعاقدي للوحدة', cls: 'w-s', f: function (r, i, p) { return inp(p + '.contractRent', { num: 1 }); } },
       { h: 'سنوات متبقية بالعقد', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.leaseYears', { num: 1, ph: '∞' }); } },
+      { h: 'زيادة دورية %', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.escPct', { num: 1, ph: '0' }); } },
+      { h: 'كل (سنة)', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.escEvery', { num: 1, ph: '1' }); } },
+      { h: 'شغور عند الانتهاء (شهر)', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.voidMonths', { num: 1, ph: '0' }); } },
+      { h: 'تكلفة تأجير (شهر)', cls: 'w-xs', f: function (r, i, p) { return inp(p + '.leasingMonths', { num: 1, ph: '0' }); } },
       { h: 'مصدر الإيجار السوقي', cls: 'w-s', f: function (r, i, p) { return sel(p + '.marketSource', [['comps', 'من المقارنات'], ['manual', 'يدوي (م²)']]); } },
       { h: 'السوقي ر.س/م²', cls: 'w-s', f: function (r, i, p) { return r.marketSource === 'comps' ? '<span class="chip link">' + N(rr.rows[i] && rr.rows[i].marketRate) + '</span>' : inp(p + '.marketRate', { num: 1 }); } },
       { h: 'أساس الدخل', cls: 'w-s', f: function (r, i, p) { return sel(p + '.basis', [['default', 'الافتراضي'], ['blended', 'تعاقدي للمؤجر + سوقي للشاغر'], ['contract', 'تعاقدي'], ['market', 'سوقي']]); } },
@@ -1413,7 +1488,7 @@ document.documentElement.setAttribute('dir', 'rtl');
       { h: 'الدخل المحتمل PGI', num: 1, cls: 'computed', f: function (r, i) { return N(rr.rows[i] && rr.rows[i].pgi); } }
     ];
     var foot = '<tfoot><tr><td>الإجمالي</td><td></td><td class="num">' + N(rr.totals.units) + '</td><td class="num">' + N(rr.totals.area) + ' م²</td><td class="num">' + N(rr.totals.occupied) +
-      '</td><td colspan="7">الإشغال الفعلي ' + P(rr.totals.physicalOccupancy, 1) + ' · الإيجار السوقي الكامل ' + N(rr.totals.marketTotal) + ' · التعاقدي ' + N(rr.totals.contractTotal) + '</td><td class="num">' + N(rr.totals.pgi) + '</td><td></td></tr></tfoot>';
+      '</td><td colspan="11">الإشغال الفعلي ' + P(rr.totals.physicalOccupancy, 1) + ' · الإيجار السوقي الكامل ' + N(rr.totals.marketTotal) + ' · التعاقدي ' + N(rr.totals.contractTotal) + '</td><td class="num">' + N(rr.totals.pgi) + '</td><td></td></tr></tfoot>';
 
     var opCols = [
       { h: 'البند', cls: 'w-l', f: function (r, i, p) { return inp(p + '.label'); } },
@@ -1427,7 +1502,9 @@ document.documentElement.setAttribute('dir', 'rtl');
     var stmt = [
       ['إجمالي الدخل المحتمل PGI', n.pgi, 'sub'], ['خسارة الشغور (' + P(n.vacancyPct, 1) + ')', -n.vacancyLoss], ['خسارة التحصيل (' + P(n.collectionPct, 1) + ')', -n.collectionLoss],
       ['دخل آخر (مواقف، لوحات، خدمات)', n.otherIncome], ['الدخل الفعلي الإجمالي EGI', n.egi, 'sub']
-    ].concat(n.opexLines.map(function (l) { return ['  ' + (l.label || 'مصروف'), -l.amount]; })).concat([
+    ];
+    if (n.relettingLoss) stmt.splice(3, 0, ['فاقد إعادة التأجير عند انتهاء العقود', -n.relettingLoss]);
+    stmt = stmt.concat(n.opexLines.map(function (l) { return ['  ' + (l.label || 'مصروف'), -l.amount]; })).concat([
       ['إجمالي المصروفات التشغيلية (' + P(n.opexRatio, 1) + ' من EGI)', -n.opex, 'sub'], ['صافي الدخل التشغيلي المحسوب', n.noiComputed, 'sub']
     ]);
     if (n.overridden) stmt.push(['تجاوز مهني', n.noi - n.noiComputed]);
@@ -1440,7 +1517,7 @@ document.documentElement.setAttribute('dir', 'rtl');
         field('الإيجار التعاقدي مدخل', sel('income.contractPeriod', [['annual', 'سنوياً للوحدة'], ['monthly', 'شهرياً للوحدة']]))) +
       '</div>' + (direct ? '' : '<div class="panel-head"><h3>جدول الوحدات Rent Roll</h3><div class="tools">' + btn('addRow', 'إضافة صف', 'data-list="income.units" data-tpl="unit"', 'ghost') + '</div></div>' +
         editTable('income.units', cols, { id: 't-units', foot: foot }) +
-        '<p class="hint">«سنوات متبقية بالعقد»: بعد انتهائها يتحول الصف إلى الإيجار السوقي في DCF. اتركه فارغاً لإبقاء العقد طوال الفترة.</p>') +
+        '<p class="hint">«سنوات متبقية بالعقد»: بعد انتهائها يتحول الصف إلى الإيجار السوقي، مع فاقد شغور وتكلفة تأجير في سنة إعادة التأجير. الزيادة الدورية تُطبق على الإيجار التعاقدي فقط، ونمو السوق في DCF يُطبق على الإيجار السوقي فقط. اترك المدة فارغة لإبقاء العقد دائماً.</p>') +
       '</section>' +
       '<div class="cols"><section class="panel"><div class="panel-head"><h2>الشغور والتحصيل والدخل الآخر</h2></div><div class="form">' +
       field('نسبة الشغور والفاقد %', inp('income.vacancyPct', { num: 1 }), 'من إجمالي الدخل المحتمل') +
@@ -1524,17 +1601,29 @@ document.documentElement.setAttribute('dir', 'rtl');
 
   // ----------------------------------------------------------- tab: direct
   function tabDirect(R) {
-    var d = R.direct, n = R.noi, c = R.cap, r = state.model.case.rounding;
+    var d = R.direct, n = R.noi, c = R.cap, r = state.model.case.rounding, m = state.model;
     var steps = [-100, -75, -50, -25, 0, 25, 50, 75, 100];
+    var vals = steps.map(function (s) { return s === 0 ? d.value : E.runAll(E.withShocks(m, { capBps: s }), { skipRange: true }).direct.value; });
     var tbl = '<div class="scroll"><table id="t-dsteps"><thead><tr><th>معدل الرسملة</th>' + steps.map(function (s) { return '<th class="num">' + (c.selected + s / 100).toFixed(2) + '%</th>'; }).join('') + '</tr></thead><tbody><tr><td>القيمة</td>' +
-      steps.map(function (s) { return '<td class="num' + (s === 0 ? ' computed' : '') + '">' + N(E.roundTo(n.noi / ((c.selected + s / 100) / 100) + d.adjSum, r)) + '</td>'; }).join('') + '</tr><tr><td>التغير</td>' +
-      steps.map(function (s) { var v = n.noi / ((c.selected + s / 100) / 100) + d.adjSum; return '<td class="num">' + P(v / d.value - 1, 1) + '</td>'; }).join('') + '</tr></tbody></table></div>';
+      vals.map(function (v, i) { return '<td class="num' + (steps[i] === 0 ? ' computed' : '') + '">' + N(E.roundTo(v, r)) + '</td>'; }).join('') + '</tr><tr><td>التغير</td>' +
+      vals.map(function (v) { return '<td class="num">' + P(v / d.value - 1, 1) + '</td>'; }).join('') + '</tr></tbody></table></div>';
+    var hasLeases = m.income.mode !== 'direct' && (m.income.units || []).some(function (u) { return E.num(u.contractRent) > 0; });
+    var ld = d.leaseDetail;
+    var leaseTbl = d.method === 'market' && ld && ld.years.length ? '<div class="scroll"><table class="stmt" id="t-lease"><thead><tr><th>السنة</th><th class="num">NOI حسب العقود</th><th class="num">تكلفة إعادة التأجير</th><th class="num">NOI بالإيجار السوقي</th><th class="num">الفرق</th><th class="num">القيمة الحالية</th></tr></thead><tbody>' +
+      ld.years.map(function (y) { return '<tr><td>' + (y.year === 'perp' ? 'ما بعد ذلك (دائم)' : 'سنة ' + y.year) + '</td><td class="num">' + N(y.asIs) + '</td><td class="num neg">' + N(-y.leasing) + '</td><td class="num">' + N(y.market) + '</td><td class="num ' + (y.diff < 0 ? 'neg' : '') + '">' + N(y.diff) + '</td><td class="num">' + N(y.pv) + '</td></tr>'; }).join('') +
+      '</tbody><tfoot><tr><td colspan="5">تسوية العقود القائمة</td><td class="num">' + N(d.leaseAdj) + '</td></tr></tfoot></table></div>' : '';
+    var methodPanel = hasLeases ? '<section class="panel"><div class="panel-head"><h2>أساس الرسملة للعقار المؤجر</h2><div class="tools">' + (leaseTbl ? btn('copyTable', 'نسخ', 'data-table="t-lease"', 'ghost') : '') + '</div></div><div class="form">' +
+      field('الطريقة', sel('direct.method', [['market', 'سوقي + تسوية العقود (المدة والارتداد)'], ['asIs', 'رسملة الدخل الحالي كما هو']])) +
+      (m.direct.method === 'market' ? field('معدل خصم فروق العقود %', inp('direct.leaseRate', { num: 1, ph: 'فارغ = معدل الرسملة' }), 'معدل أقل من معدل الرسملة يعكس أمان الإيجار التعاقدي') : '') + '</div>' +
+      '<p class="hint">«سوقي + تسوية العقود» يرسمل الدخل بالإيجار السوقي لكل الوحدات، ثم يضيف القيمة الحالية لفرق الدخل التعاقدي عن السوقي حتى انتهاء كل عقد، شاملاً الزيادات الدورية وفاقد وتكاليف إعادة التأجير. عند تساوي معدل الخصم مع معدل الرسملة تطابق النتيجة طريقة المدة والارتداد. «كما هو» يرسمل الإيجار التعاقدي كأنه دائم.</p>' +
+      leaseTbl + warnList(d.warnings) + '</section>' : '';
     return '<section class="panel"><div class="panel-head"><h2>الرسملة المباشرة</h2></div>' +
       '<div class="result"><span class="lab">القيمة (' + esc(cur()) + ')</span><span class="big">' + N(d.rounded) + '</span><span class="lab">النطاق ' + N(E.roundTo(d.low, r)) + ' – ' + N(E.roundTo(d.high, r)) + '</span></div>' +
-      '<ul class="kv"><li>صافي الدخل التشغيلي NOI <b>' + N(n.noi) + '</b></li><li>معدل الرسملة <b>' + P(c.selected / 100) + '</b></li>' +
+      '<ul class="kv"><li>' + (d.method === 'market' ? 'NOI بالإيجار السوقي' : 'صافي الدخل التشغيلي NOI') + ' <b>' + N(d.method === 'market' ? d.marketNoi : n.noi) + '</b></li><li>معدل الرسملة <b>' + P(c.selected / 100) + '</b></li>' +
+      (d.method === 'market' ? '<li>تسوية العقود القائمة <b>' + N(d.leaseAdj) + '</b></li><li>NOI الحالي حسب العقود <b>' + N(n.noi) + '</b></li>' : '') +
       '<li>القيمة للمتر المربع GLA <b>' + N(d.perM2) + '</b></li><li>مضاعف الدخل الفعلي EGIM <b>' + N(d.multiplier, 2) + '</b></li>' +
       '<li>العائد على القيمة المقربة <b>' + P(n.noi / d.rounded) + '</b></li><li>تعديلات بعد الرسملة <b>' + N(d.adjSum) + '</b></li></ul>' +
-      traceList(d.trace) + '</section>' +
+      traceList(d.trace) + '</section>' + methodPanel +
       '<section class="panel"><div class="panel-head"><h2>تعديلات بعد الرسملة</h2><div class="tools">' + btn('addRow', 'إضافة تعديل', 'data-list="direct.adjustments" data-tpl="adjustment"', 'ghost') + '</div></div>' +
       '<p class="hint">مبالغ تُضاف أو تُطرح من القيمة المرسملة: مصروفات رأسمالية مؤجلة، تكاليف تأجير، فرق إيجار أقل من السوق، أرض زائدة. أدخل الطرح بإشارة سالبة.</p>' +
       editTable('direct.adjustments', [
@@ -1547,16 +1636,17 @@ document.documentElement.setAttribute('dir', 'rtl');
   function tabDCF(R) {
     var d = R.dcf, c = R.cap, bu = c.methods.buildup;
     var rowsDef = [
-      ['إجمالي الدخل المحتمل', 'pgi'], ['شغور وتحصيل', 'vacancyLoss', -1], ['دخل آخر', 'other'], ['الدخل الفعلي EGI', 'egi', 1, 'sub'], ['المصروفات التشغيلية', 'opex', -1],
-      ['تعديل التجاوز المهني', 'overrideAdj'], ['صافي الدخل NOI', 'noi', 1, 'sub'], ['مصروفات رأسمالية', 'capex', -1], ['صافي التدفق النقدي', 'cf', 1, 'sub'],
+      ['إجمالي الدخل المحتمل', 'pgi'], ['شغور وتحصيل', 'vacancyLoss', -1], ['فاقد إعادة التأجير', 'relet', -1], ['دخل آخر', 'other'], ['الدخل الفعلي EGI', 'egi', 1, 'sub'], ['المصروفات التشغيلية', 'opex', -1],
+      ['تعديل التجاوز المهني', 'overrideAdj'], ['صافي الدخل NOI', 'noi', 1, 'sub'], ['مصروفات رأسمالية', 'capex', -1], ['تكاليف إعادة التأجير', 'leasing', -1], ['صافي التدفق النقدي', 'cf', 1, 'sub'],
       ['معامل الخصم', 'df', 1, '', 4], ['القيمة الحالية', 'pv', 1, 'total']
     ];
     if (!R.noi.overridden) rowsDef = rowsDef.filter(function (x) { return x[1] !== 'overrideAdj'; });
+    ['relet', 'leasing'].forEach(function (k) { if (!d.rows.some(function (y) { return y[k]; })) rowsDef = rowsDef.filter(function (x) { return x[1] !== k; }); });
     var yrs = d.rows.concat([d.forward]);
     var table = '<div class="scroll"><table class="stmt" id="t-dcf"><thead><tr><th>البند / السنة</th>' + yrs.map(function (y, i) { return '<th class="num">' + (i === d.rows.length ? 'سنة ' + y.year + ' (للتخارج)' : 'سنة ' + y.year) + '</th>'; }).join('') + '</tr></thead><tbody>' +
       rowsDef.map(function (rd) {
         return '<tr class="' + (rd[3] || '') + '"><td>' + rd[0] + '</td>' + yrs.map(function (y, i) {
-          if (i === d.rows.length && ['df', 'pv', 'cf', 'capex'].indexOf(rd[1]) >= 0) return '<td></td>';
+          if (i === d.rows.length && ['df', 'pv', 'cf', 'capex', 'leasing'].indexOf(rd[1]) >= 0) return '<td></td>';
           var v = y[rd[1]] * (rd[2] || 1);
           return '<td class="num ' + (v < 0 ? 'neg' : '') + '">' + (rd[4] ? v.toFixed(rd[4]) : N(v)) + '</td>';
         }).join('') + '</tr>';
@@ -1710,6 +1800,7 @@ document.documentElement.setAttribute('dir', 'rtl');
     var basisLabel = { blended: 'تعاقدي للمؤجر + سوقي للشاغر', market: 'سوقي بالكامل', contract: 'تعاقدي بالكامل' }[m.income.rentBasis] || '';
     var assumptions = '<ul class="kv">' + rentCats +
       '<li>أساس الدخل <b>' + (m.income.mode === 'direct' ? 'PGI مدخل مباشرة' : basisLabel) + '</b></li>' +
+      '<li>أساس الرسملة المباشرة <b>' + (R.direct.method === 'market' ? 'سوقي + تسوية العقود (' + N(R.direct.leaseAdj) + ')' : 'الدخل الحالي كما هو') + '</b></li>' +
       '<li>الدخل المحتمل PGI <b>' + N(R.noi.pgi) + '</b></li><li>الشغور / التحصيل <b>' + P(R.noi.vacancyPct, 1) + ' / ' + P(R.noi.collectionPct, 1) + '</b></li>' +
       '<li>الدخل الفعلي EGI <b>' + N(R.noi.egi) + '</b></li><li>نسبة المصروفات <b>' + P(R.noi.opexRatio, 1) + '</b></li>' +
       '<li>صافي الدخل NOI' + (R.noi.overridden ? ' (مُتجاوز)' : '') + ' <b>' + N(R.noi.noi) + '</b></li><li>معدل الرسملة <b>' + P(R.cap.selected / 100) + ' (' + P(R.cap.low / 100) + ' – ' + P(R.cap.high / 100) + ')</b></li>' +
@@ -1917,7 +2008,7 @@ document.documentElement.setAttribute('dir', 'rtl');
   (function migrate() {
     var base = S.sample();
     Object.keys(base).forEach(function (k) { if (state.model[k] === undefined) state.model[k] = base[k]; });
-    ['sens', 'cap', 'dcf', 'recon'].forEach(function (k) { Object.keys(base[k]).forEach(function (kk) { if (state.model[k][kk] === undefined) state.model[k][kk] = clone(base[k][kk]); }); });
+    ['sens', 'cap', 'dcf', 'recon', 'direct'].forEach(function (k) { Object.keys(base[k]).forEach(function (kk) { if (state.model[k][kk] === undefined) state.model[k][kk] = clone(base[k][kk]); }); });
   })();
 
   render();

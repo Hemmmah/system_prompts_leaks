@@ -314,9 +314,17 @@
 
   // --------------------------------------------------------------- rent roll
 
-  /** year (1-based) lets contract leases revert to market after u.leaseYears. */
-  function computeRentRoll(model, rentAnalysis, year) {
+  /**
+   * year (1-based): contract rents follow their own escalation schedule and revert to market after
+   * u.leaseYears (whole years). rev: market-rent growth factor for that year (contract rents never use it).
+   * opts.forceMarket: value every unit at market rent (used by the market + lease-adjustment method).
+   * In the first year after expiry the occupied units lose u.voidMonths of rent and incur u.leasingMonths
+   * of market rent as a letting cost.
+   */
+  function computeRentRoll(model, rentAnalysis, year, rev, opts) {
     year = year || 1;
+    rev = isNum(rev) ? rev : 1;
+    opts = opts || {};
     var inc = model.income || {};
     var defBasis = inc.rentBasis || 'blended';
     var contractMult = inc.contractPeriod === 'monthly' ? 12 : 1;
@@ -325,12 +333,21 @@
       var units = numOr(u.units, 1), area = num(u.area);
       var occ = clamp(numOr(u.occupied, units), 0, units);
       var rate = u.marketSource === 'comps' && rentAnalysis ? rentAnalysis.rateFor(u.category) : num(u.marketRate);
-      var marketUnit = isNum(num(u.marketRentUnit)) && u.marketSource === 'unit' ? num(u.marketRentUnit) : rate * area;
-      var contractUnit = num(u.contractRent) * contractMult;
-      var leaseYears = num(u.leaseYears);
+      var marketUnit0 = isNum(num(u.marketRentUnit)) && u.marketSource === 'unit' ? num(u.marketRentUnit) : rate * area;
+      var marketUnit = marketUnit0 * rev;
+      var contractBase = num(u.contractRent) * contractMult;
+      var esc = pct(u.escPct, 0), every = Math.max(1, Math.round(numOr(u.escEvery, 1)));
+      var contractUnit = contractBase * Math.pow(1 + esc, Math.floor((year - 1) / every));
+      var leaseYears = Math.round(num(u.leaseYears));
       var expired = isNum(leaseYears) && year > leaseYears;
       var hasContract = isNum(contractUnit) && contractUnit > 0 && !expired;
-      var basis = u.basis && u.basis !== 'default' ? u.basis : defBasis;
+      var basis = opts.forceMarket ? 'market' : (u.basis && u.basis !== 'default' ? u.basis : defBasis);
+      var hadContract = isNum(contractBase) && contractBase > 0 && basis !== 'market';
+      var reletYear = hadContract && isNum(leaseYears) && leaseYears >= 1 && year === leaseYears + 1;
+      var voidM = numOr(u.voidMonths, numOr(inc.voidMonths, 0)), leaseM = numOr(u.leasingMonths, numOr(inc.leasingMonths, 0));
+      var letUnits = basis === 'contract' ? units : occ;
+      var voidLoss = reletYear && isNum(marketUnit) ? letUnits * marketUnit * voidM / 12 * rentShock : 0;
+      var leasingCost = reletYear && isNum(marketUnit) ? letUnits * marketUnit * leaseM / 12 * rentShock : 0;
       var pgi;
       if (basis === 'market') pgi = units * marketUnit;
       else if (basis === 'contract') pgi = units * (hasContract ? contractUnit : marketUnit);
@@ -343,12 +360,13 @@
       var contractTotal = hasContract ? units * contractUnit * rentShock : NaN;
       return { label: u.label, category: u.category, units: units, area: area, totalArea: units * (isNum(area) ? area : 0), occupied: occ,
         marketRate: rate, marketUnit: marketUnit, contractUnit: contractUnit, basis: basis, pgi: pgi,
-        marketTotal: marketTotal, contractTotal: contractTotal, expired: expired,
+        marketTotal: marketTotal, contractTotal: contractTotal, expired: expired, leaseYears: leaseYears,
+        voidLoss: voidLoss, leasingCost: leasingCost, reletYear: reletYear,
         reversionGap: hasContract && isNum(marketUnit) ? (marketUnit - contractUnit) / contractUnit : NaN, issues: issues };
     });
-    var t = { pgi: 0, marketTotal: 0, contractTotal: 0, area: 0, units: 0, occupied: 0 };
+    var t = { pgi: 0, marketTotal: 0, contractTotal: 0, area: 0, units: 0, occupied: 0, voidLoss: 0, leasingCost: 0 };
     rows.forEach(function (r) {
-      t.pgi += r.pgi; t.marketTotal += r.marketTotal; t.contractTotal += isNum(r.contractTotal) ? r.contractTotal : 0;
+      t.pgi += r.pgi; t.voidLoss += r.voidLoss; t.leasingCost += r.leasingCost; t.marketTotal += r.marketTotal; t.contractTotal += isNum(r.contractTotal) ? r.contractTotal : 0;
       t.area += r.totalArea; t.units += r.units; t.occupied += r.occupied;
     });
     t.physicalOccupancy = t.units ? t.occupied / t.units : NaN;
@@ -366,11 +384,11 @@
     var cs = model.case || {};
     var rev = isNum(factors.revenue) ? factors.revenue : 1;
     var exf = isNum(factors.expense) ? factors.expense : 1;
-    var rr = computeRentRoll(model, rentAnalysis, factors.year);
-    var pgi;
-    if (inc.mode === 'direct') pgi = numOr(inc.pgiDirect, 0) * (1 + sh(model, 'rentPct') / 100);
-    else pgi = rr.totals.pgi;
-    pgi *= rev;
+    var rr = computeRentRoll(model, rentAnalysis, factors.year, rev, { forceMarket: factors.forceMarket });
+    var direct = inc.mode === 'direct';
+    var pgi = direct ? numOr(inc.pgiDirect, 0) * (1 + sh(model, 'rentPct') / 100) * rev : rr.totals.pgi;
+    var relettingLoss = direct ? 0 : rr.totals.voidLoss;
+    var leasingCost = direct ? 0 : rr.totals.leasingCost;
     var gla = numOr(cs.gla, rr.totals.area);
     var vac = isNum(factors.vacancyPct) ? factors.vacancyPct : pct(inc.vacancyPct, 0);
     vac = clamp(vac + sh(model, 'vacancyPts') / 100, 0, 1);
@@ -378,7 +396,7 @@
     var coll = pct(inc.collectionLossPct, 0);
     var collectionLoss = (pgi - vacancyLoss) * coll;
     var other = numOr(inc.otherIncome, 0) * rev;
-    var egi = pgi - vacancyLoss - collectionLoss + other;
+    var egi = pgi - vacancyLoss - collectionLoss - relettingLoss + other;
     var op = model.opex || {};
     var opShock = 1 + sh(model, 'opexPct') / 100;
     var lines = [];
@@ -398,7 +416,7 @@
     var opex = lines.reduce(function (s, l) { return s + l.amount; }, 0);
     var noi = egi - opex;
     return { rentRoll: rr, pgi: pgi, vacancyPct: vac, vacancyLoss: vacancyLoss, collectionPct: coll, collectionLoss: collectionLoss,
-      otherIncome: other, egi: egi, opexLines: lines, opex: opex, opexRatio: egi ? opex / egi : NaN, noiComputed: noi, noi: noi, gla: gla };
+      otherIncome: other, relettingLoss: relettingLoss, leasingCost: leasingCost, egi: egi, opexLines: lines, opex: opex, opexRatio: egi ? opex / egi : NaN, noiComputed: noi, noi: noi, gla: gla };
   }
 
   /** Year-1 NOI with optional professional override (scaled under shocks so sensitivity still works). */
@@ -418,6 +436,7 @@
     trace.push('إجمالي الدخل المحتمل PGI = ' + fmt(r.pgi));
     trace.push('− خسارة الشغور (' + fmtP(r.vacancyPct) + ') = ' + fmt(r.vacancyLoss));
     trace.push('− خسارة التحصيل (' + fmtP(r.collectionPct) + ' من الدخل بعد الشغور) = ' + fmt(r.collectionLoss));
+    if (r.relettingLoss) trace.push('− فاقد إعادة التأجير عند انتهاء العقود = ' + fmt(r.relettingLoss));
     trace.push('+ دخل آخر = ' + fmt(r.otherIncome));
     trace.push('= الدخل الفعلي الإجمالي EGI = ' + fmt(r.egi));
     trace.push('− المصروفات التشغيلية = ' + fmt(r.opex) + ' (' + fmtP(r.opexRatio) + ' من EGI)');
@@ -500,24 +519,76 @@
 
   // ------------------------------------------------------ direct capitalisation
 
-  function computeDirectCap(model, noiRes, capRes) {
+  /**
+   * Lease adjustment for the "market + leases" direct capitalisation method.
+   * Capitalising market NOI assumes every unit is let at market rent today. The adjustment adds the
+   * present value, at rate y, of the yearly difference between the NOI actually receivable under the
+   * leases (with escalations, re-letting void and letting costs) and market NOI, until the last lease
+   * expires. Rows with no stated expiry keep their difference forever (capitalised at y).
+   * With y = cap rate this equals the classic term-and-reversion valuation.
+   */
+  function leaseAdjustment(model, rentAnalysis, y) {
+    var units = (model.income || {}).units || [];
+    if ((model.income || {}).mode === 'direct' || !units.length || !(y > 0)) return { total: 0, years: [], horizon: 0 };
+    var H = 0;
+    units.forEach(function (u) { var L = Math.round(num(u.leaseYears)); if (isNum(L) && L + 1 > H) H = L + 1; });
+    H = Math.min(H, 60);
+    var years = [], total = 0;
+    for (var t = 1; t <= H + 1; t++) {
+      var asIs = computeNOI(model, rentAnalysis, { year: t });
+      var mkt = computeNOI(model, rentAnalysis, { year: t, forceMarket: true });
+      var diff = asIs.noiComputed - asIs.leasingCost - mkt.noiComputed;
+      if (t <= H) {
+        var pv = diff / Math.pow(1 + y, t);
+        years.push({ year: t, asIs: asIs.noiComputed, leasing: asIs.leasingCost, market: mkt.noiComputed, diff: diff, pv: pv });
+        total += pv;
+      } else if (Math.abs(diff) > 1e-9) {
+        var tail = diff / y / Math.pow(1 + y, H);
+        years.push({ year: 'perp', asIs: asIs.noiComputed, leasing: 0, market: mkt.noiComputed, diff: diff, pv: tail });
+        total += tail;
+      }
+    }
+    return { total: total, years: years, horizon: H };
+  }
+
+  function computeDirectCap(model, noiRes, capRes, rentAnalysis) {
     var d = model.direct || {};
     var cs = model.case || {};
     var cap = capRes.selected / 100;
     var adjustments = (d.adjustments || []).map(function (a) { return { label: a.label, amount: numOr(a.amount, 0) }; });
     var adjSum = adjustments.reduce(function (s, a) { return s + a.amount; }, 0);
-    var raw = noiRes.noi / cap;
+    var hasLeases = (model.income || {}).mode !== 'direct' && ((model.income || {}).units || []).some(function (u) { return num(u.contractRent) > 0; });
+    var method = d.method === 'market' && hasLeases && !noiRes.overridden ? 'market' : 'asIs';
+    var rateOf = function (c) { var m = pct(d.leaseRate); return isNum(m) && m > 0 ? m : c; };
+    var valueAt = function (c) {
+      if (method === 'asIs') return { cap: noiRes.noi / c, lease: 0, noi: noiRes.noi };
+      var mNoi = computeNOI(model, rentAnalysis, { forceMarket: true }).noiComputed;
+      var la = leaseAdjustment(model, rentAnalysis, rateOf(c));
+      return { cap: mNoi / c, lease: la.total, noi: mNoi, detail: la };
+    };
+    var base = valueAt(cap), lo = valueAt(capRes.high / 100), hi = valueAt(capRes.low / 100);
+    var raw = base.cap + base.lease;
     var value = raw + adjSum;
-    var low = noiRes.noi / (capRes.high / 100) + adjSum;
-    var high = noiRes.noi / (capRes.low / 100) + adjSum;
+    var low = lo.cap + lo.lease + adjSum;
+    var high = hi.cap + hi.lease + adjSum;
     var rounding = cs.rounding;
-    var trace = [
-      'القيمة = NOI ÷ معدل الرسملة = ' + fmtN(noiRes.noi) + ' ÷ ' + fmtP(cap) + ' = ' + fmtN(raw),
+    var trace = method === 'market' ? [
+      'NOI على أساس الإيجار السوقي لكل الوحدات = ' + fmtN(base.noi) + ' ÷ ' + fmtP(cap) + ' = ' + fmtN(base.cap),
+      '+ تسوية العقود القائمة (القيمة الحالية لفرق الدخل التعاقدي عن السوقي حتى انتهاء العقود، شاملة الزيادات وفاقد وتكاليف إعادة التأجير، بمعدل ' + fmtP(rateOf(cap)) + ') = ' + fmtN(base.lease),
+      '= القيمة بطريقة المدة والارتداد = ' + fmtN(raw)
+    ] : [
+      'القيمة = NOI ÷ معدل الرسملة = ' + fmtN(noiRes.noi) + ' ÷ ' + fmtP(cap) + ' = ' + fmtN(raw)
+    ];
+    trace = trace.concat([
       adjSum ? 'تعديلات بعد الرسملة (مصروفات رأسمالية/تأجير/أراضٍ زائدة) = ' + fmtN(adjSum) : 'لا توجد تعديلات بعد الرسملة',
       'القيمة قبل التقريب = ' + fmtN(value) + ' ← بعد التقريب = ' + fmtN(roundTo(value, rounding)),
       'النطاق عند معدل ' + fmtP(capRes.high / 100) + ' – ' + fmtP(capRes.low / 100) + ': ' + fmtN(roundTo(low, rounding)) + ' – ' + fmtN(roundTo(high, rounding))
-    ];
-    return { raw: raw, adjustments: adjustments, adjSum: adjSum, value: value, rounded: roundTo(value, rounding),
+    ]);
+    var warnings = [];
+    if (d.method === 'market' && noiRes.overridden) warnings.push('الرسملة المباشرة: تم تجاوز NOI مهنياً، لذا طُبقت الرسملة على NOI المعتمد بدل طريقة السوق + تسوية العقود.');
+    if (method === 'asIs' && hasLeases && (model.income || {}).rentBasis !== 'market') warnings.push('الرسملة المباشرة ترسمل الإيجارات التعاقدية كأنها دائمة. اختر «سوقي + تسوية العقود» لعقار مؤجر بإيجارات تختلف عن السوق.');
+    return { method: method, marketNoi: base.noi, capitalised: base.cap, leaseAdj: base.lease, leaseDetail: base.detail, warnings: warnings,
+      raw: raw, adjustments: adjustments, adjSum: adjSum, value: value, rounded: roundTo(value, rounding),
       low: low, high: high, perM2: noiRes.gla ? value / noiRes.gla : NaN, multiplier: noiRes.egi ? value / noiRes.egi : NaN, trace: trace,
       valid: isNum(value) && cap > 0 };
   }
@@ -550,9 +621,9 @@
       var y = computeNOI(model, rentAnalysis, { revenue: revF, expense: expF, vacancyPct: vacList[t - 1] / 100, year: t });
       var noi = y.noiComputed * overrideFactor;
       var capex = y.egi * capexPct + capexSched[t - 1];
-      var cf = noi - capex;
+      var cf = noi - capex - y.leasingCost;
       var df = 1 / Math.pow(1 + r, t - (mid ? 0.5 : 0));
-      rows.push({ year: t, pgi: y.pgi, vacancyPct: y.vacancyPct, vacancyLoss: y.vacancyLoss + y.collectionLoss, other: y.otherIncome, egi: y.egi, opex: y.opex,
+      rows.push({ year: t, pgi: y.pgi, vacancyPct: y.vacancyPct, vacancyLoss: y.vacancyLoss + y.collectionLoss, relet: y.relettingLoss, leasing: y.leasingCost, other: y.otherIncome, egi: y.egi, opex: y.opex,
         noiComputed: y.noiComputed, overrideAdj: noi - y.noiComputed, noi: noi, capex: capex, cf: cf, df: df, pv: cf * df });
     }
     var hold = rows.slice(0, n);
@@ -646,7 +717,7 @@
     var rent = analyzeRentComps(model);
     var noi = computeNOIFinal(model, rent);
     var cap = computeCapRate(model);
-    var direct = computeDirectCap(model, noi, cap);
+    var direct = computeDirectCap(model, noi, cap, rent);
     var dcf = computeDCF(model, rent, noi, cap, { skipRange: opts.skipRange });
     var sales = computeSales(model);
     var recon = reconcile(model, { direct: direct, dcf: dcf, sales: sales });
@@ -654,7 +725,7 @@
       rent.categories.length
         ? [].concat.apply([], rent.categories.map(function (c) { return rent.byCategory[c].warnings.map(function (w) { return 'إيجارات «' + c + '»: ' + w; }); }))
         : rent.all.warnings.map(function (w) { return 'الإيجارات المقارنة: ' + w; }),
-      noi.warnings, cap.warnings, dcf.warnings,
+      noi.warnings, cap.warnings, direct.warnings, dcf.warnings,
       sales.analysis.rows.length ? sales.analysis.warnings.map(function (w) { return 'المقارنات البيعية: ' + w; }) : [],
       recon.warnings);
     return { rent: rent, noi: noi, cap: cap, direct: direct, dcf: dcf, sales: sales, recon: recon, warnings: warnings };
@@ -815,7 +886,7 @@
     normalizeRentComps: normalizeRentComps, normalizeSaleComps: normalizeSaleComps, normalizeCapComps: normalizeCapComps,
     analyzeRentComps: analyzeRentComps, computeRentRoll: computeRentRoll, computeNOI: computeNOI, computeNOIFinal: computeNOIFinal,
     mortgageConstant: mortgageConstant, computeCapRate: computeCapRate, computeDirectCap: computeDirectCap, computeDCF: computeDCF,
-    computeSales: computeSales, reconcile: reconcile, runAll: runAll, withShocks: withShocks,
+    computeSales: computeSales, leaseAdjustment: leaseAdjustment, reconcile: reconcile, runAll: runAll, withShocks: withShocks,
     SHOCKS: SHOCKS, METRICS: METRICS, ADJ_KEYS: ADJ_KEYS, tornado: tornado, grid: grid, scenarios: scenarios, breakEven: breakEven,
     parseTable: parseTable, importRows: importRows, mapColumns: mapColumns, fmtN: fmtN, fmtP: fmtP
   };

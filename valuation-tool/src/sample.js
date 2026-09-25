@@ -48,8 +48,8 @@
         mode: 'rentroll', pgiDirect: '', rentBasis: 'blended', contractPeriod: 'annual',
         vacancyPct: '7', collectionLossPct: '2', otherIncome: '60000',
         units: [
-          { label: 'معارض الدور الأرضي', category: 'معارض', units: '6', area: '150', occupied: '6', contractRent: '150000', leaseYears: '2', marketSource: 'comps', marketRate: '', basis: 'default' },
-          { label: 'مكاتب الأدوار العلوية', category: 'مكاتب', units: '24', area: '120', occupied: '20', contractRent: '72000', leaseYears: '1', marketSource: 'comps', marketRate: '', basis: 'default' }
+          { label: 'معارض الدور الأرضي', category: 'معارض', units: '6', area: '150', occupied: '6', contractRent: '150000', leaseYears: '4', escPct: '5', escEvery: '2', voidMonths: '3', leasingMonths: '1', marketSource: 'comps', marketRate: '', basis: 'default' },
+          { label: 'مكاتب الأدوار العلوية', category: 'مكاتب', units: '24', area: '120', occupied: '20', contractRent: '72000', leaseYears: '2', escPct: '', escEvery: '', voidMonths: '4', leasingMonths: '1', marketSource: 'comps', marketRate: '', basis: 'default' }
         ]
       },
       opex: {
@@ -86,7 +86,7 @@
         survey: { value: '7.5', low: '7', high: '8', source: 'تقرير سوق المكاتب — الربع الثاني 2026 (أدخل المصدر الفعلي)' },
         weights: { comps: '60', band: '10', buildup: '10', survey: '20' }
       },
-      direct: { adjustments: [
+      direct: { method: 'market', leaseRate: '', adjustments: [
         { label: 'تكاليف تأجير الوحدات الشاغرة (عمولة + فترة مجانية)', amount: '-120000' }
       ] },
       dcf: {
@@ -117,7 +117,7 @@
     var m = sample();
     m.case = { name: 'حالة جديدة', client: '', purpose: '', basis: 'القيمة السوقية', propertyType: '', location: '', deed: '', valuationDate: new Date().toISOString().slice(0, 10), inspectionDate: '', landArea: '', gla: '', currency: 'ر.س', rounding: '10000', appraiser: '', notes: '' };
     m.rentComps.rows = []; m.rentComps.overrides = {};
-    m.income.units = [{ label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', marketSource: 'manual', marketRate: '', basis: 'default' }];
+    m.income.units = [{ label: '', category: '', units: '1', area: '', occupied: '1', contractRent: '', leaseYears: '', escPct: '', escEvery: '', voidMonths: '', leasingMonths: '', marketSource: 'manual', marketRate: '', basis: 'default' }];
     m.income.otherIncome = '0';
     m.opex.lines.forEach(function (l) { if (l.basis === 'fixed' || l.basis === 'perM2') l.amount = ''; });
     m.cap.rows = []; m.cap.survey = { value: '', low: '', high: '', source: '' }; m.cap.selection = 'manual'; m.cap.manual = '';
