@@ -516,7 +516,9 @@ document.documentElement.setAttribute('dir', 'rtl');
     exitCapBps: { label: 'معدل الرسملة التخارجي', unit: 'bps', step: 50 },
     growthPts: { label: 'نمو الإيجار', unit: 'نقطة', step: 1 },
     expenseGrowthPts: { label: 'نمو المصروفات', unit: 'نقطة', step: 1 },
-    salePct: { label: 'سعر المتر في المقارنات البيعية', unit: '%', step: 5 }
+    salePct: { label: 'سعر المتر في المقارنات البيعية', unit: '%', step: 5 },
+    voidMonths: { label: 'شغور إعادة التأجير', unit: 'شهر', step: 3 },
+    leaseRateBps: { label: 'معدل خصم فروق العقود', unit: 'bps', step: 100 }
   };
 
   function sh(model, k) { var s = model.__shocks; return s && isNum(s[k]) ? s[k] : 0; }
@@ -561,7 +563,7 @@ document.documentElement.setAttribute('dir', 'rtl');
       var basis = opts.forceMarket ? 'market' : (u.basis && u.basis !== 'default' ? u.basis : defBasis);
       var hadContract = isNum(contractBase) && contractBase > 0 && basis !== 'market';
       var reletYear = hadContract && isNum(leaseYears) && leaseYears >= 1 && year === leaseYears + 1;
-      var voidM = numOr(u.voidMonths, numOr(inc.voidMonths, 0)), leaseM = numOr(u.leasingMonths, numOr(inc.leasingMonths, 0));
+      var voidM = Math.max(0, numOr(u.voidMonths, numOr(inc.voidMonths, 0)) + sh(model, 'voidMonths')), leaseM = numOr(u.leasingMonths, numOr(inc.leasingMonths, 0));
       var letUnits = basis === 'contract' ? units : occ;
       var voidLoss = reletYear && isNum(marketUnit) ? letUnits * marketUnit * voidM / 12 * rentShock : 0;
       var leasingCost = reletYear && isNum(marketUnit) ? letUnits * marketUnit * leaseM / 12 * rentShock : 0;
@@ -776,7 +778,7 @@ document.documentElement.setAttribute('dir', 'rtl');
     var adjSum = adjustments.reduce(function (s, a) { return s + a.amount; }, 0);
     var hasLeases = (model.income || {}).mode !== 'direct' && ((model.income || {}).units || []).some(function (u) { return num(u.contractRent) > 0; });
     var method = d.method === 'market' && hasLeases && !noiRes.overridden ? 'market' : 'asIs';
-    var rateOf = function (c) { var m = pct(d.leaseRate); return isNum(m) && m > 0 ? m : c; };
+    var rateOf = function (c) { var m = pct(d.leaseRate); return (isNum(m) && m > 0 ? m : c) + sh(model, 'leaseRateBps') / 10000; };
     var valueAt = function (c) {
       if (method === 'asIs') return { cap: noiRes.noi / c, lease: 0, noi: noiRes.noi };
       var mNoi = computeNOI(model, rentAnalysis, { forceMarket: true }).noiComputed;
@@ -1218,7 +1220,7 @@ document.documentElement.setAttribute('dir', 'rtl');
       recon: { weights: { direct: '50', dcf: '30', sales: '20' }, overrideEnabled: false, overrideValue: '', overrideNote: '', rationale: 'رُجحت طريقة الرسملة المباشرة لتوفر أدلة معدلات رسملة من صفقات مماثلة في نفس المنطقة، مع استخدام DCF لاختبار أثر فرق الإيجار التعاقدي عن السوقي، والمقارنات البيعية كطريقة داعمة.' },
       sens: { metric: 'final', steps: {}, gridMetric: 'direct', rowVar: 'capBps', colVar: 'rentPct', rowStep: '25', colStep: '5', gridSize: '2' },
       scenarios: [
-        { name: 'متحفظ', prob: '25', shocks: { rentPct: '-7.5', vacancyPts: '3', opexPct: '5', capBps: '50', discountBps: '50', exitCapBps: '50', growthPts: '-1' } },
+        { name: 'متحفظ', prob: '25', shocks: { rentPct: '-7.5', vacancyPts: '3', opexPct: '5', capBps: '50', discountBps: '50', exitCapBps: '50', growthPts: '-1', voidMonths: '3' } },
         { name: 'أساسي', prob: '50', shocks: {} },
         { name: 'متفائل', prob: '25', shocks: { rentPct: '5', vacancyPts: '-2', capBps: '-25', discountBps: '-25', exitCapBps: '-25', growthPts: '0.5' } }
       ]
@@ -1745,7 +1747,7 @@ document.documentElement.setAttribute('dir', 'rtl');
       }).join('') + '</tbody></table></div>';
 
     var sc = E.scenarios(m);
-    var shockKeys = ['rentPct', 'vacancyPts', 'opexPct', 'capBps', 'discountBps', 'exitCapBps', 'growthPts', 'salePct'];
+    var shockKeys = ['rentPct', 'vacancyPts', 'opexPct', 'capBps', 'discountBps', 'exitCapBps', 'growthPts', 'voidMonths', 'salePct'];
     var scTable = '<div class="scroll"><table class="grid" id="t-scen"><thead><tr><th>السيناريو</th><th>الاحتمال %</th>' +
       shockKeys.map(function (k) { return '<th>' + esc(E.SHOCKS[k].label) + ' <small>' + E.SHOCKS[k].unit + '</small></th>'; }).join('') +
       '<th class="num">NOI</th><th class="num">معدل الرسملة</th><th class="num">الرسملة المباشرة</th><th class="num">DCF</th><th class="num">المرجحة</th><th class="rowact"></th></tr></thead><tbody>' +

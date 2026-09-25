@@ -299,7 +299,9 @@
     exitCapBps: { label: 'معدل الرسملة التخارجي', unit: 'bps', step: 50 },
     growthPts: { label: 'نمو الإيجار', unit: 'نقطة', step: 1 },
     expenseGrowthPts: { label: 'نمو المصروفات', unit: 'نقطة', step: 1 },
-    salePct: { label: 'سعر المتر في المقارنات البيعية', unit: '%', step: 5 }
+    salePct: { label: 'سعر المتر في المقارنات البيعية', unit: '%', step: 5 },
+    voidMonths: { label: 'شغور إعادة التأجير', unit: 'شهر', step: 3 },
+    leaseRateBps: { label: 'معدل خصم فروق العقود', unit: 'bps', step: 100 }
   };
 
   function sh(model, k) { var s = model.__shocks; return s && isNum(s[k]) ? s[k] : 0; }
@@ -344,7 +346,7 @@
       var basis = opts.forceMarket ? 'market' : (u.basis && u.basis !== 'default' ? u.basis : defBasis);
       var hadContract = isNum(contractBase) && contractBase > 0 && basis !== 'market';
       var reletYear = hadContract && isNum(leaseYears) && leaseYears >= 1 && year === leaseYears + 1;
-      var voidM = numOr(u.voidMonths, numOr(inc.voidMonths, 0)), leaseM = numOr(u.leasingMonths, numOr(inc.leasingMonths, 0));
+      var voidM = Math.max(0, numOr(u.voidMonths, numOr(inc.voidMonths, 0)) + sh(model, 'voidMonths')), leaseM = numOr(u.leasingMonths, numOr(inc.leasingMonths, 0));
       var letUnits = basis === 'contract' ? units : occ;
       var voidLoss = reletYear && isNum(marketUnit) ? letUnits * marketUnit * voidM / 12 * rentShock : 0;
       var leasingCost = reletYear && isNum(marketUnit) ? letUnits * marketUnit * leaseM / 12 * rentShock : 0;
@@ -559,7 +561,7 @@
     var adjSum = adjustments.reduce(function (s, a) { return s + a.amount; }, 0);
     var hasLeases = (model.income || {}).mode !== 'direct' && ((model.income || {}).units || []).some(function (u) { return num(u.contractRent) > 0; });
     var method = d.method === 'market' && hasLeases && !noiRes.overridden ? 'market' : 'asIs';
-    var rateOf = function (c) { var m = pct(d.leaseRate); return isNum(m) && m > 0 ? m : c; };
+    var rateOf = function (c) { var m = pct(d.leaseRate); return (isNum(m) && m > 0 ? m : c) + sh(model, 'leaseRateBps') / 10000; };
     var valueAt = function (c) {
       if (method === 'asIs') return { cap: noiRes.noi / c, lease: 0, noi: noiRes.noi };
       var mNoi = computeNOI(model, rentAnalysis, { forceMarket: true }).noiComputed;

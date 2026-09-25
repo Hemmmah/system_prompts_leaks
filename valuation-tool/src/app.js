@@ -499,7 +499,7 @@
       }).join('') + '</tbody></table></div>';
 
     var sc = E.scenarios(m);
-    var shockKeys = ['rentPct', 'vacancyPts', 'opexPct', 'capBps', 'discountBps', 'exitCapBps', 'growthPts', 'salePct'];
+    var shockKeys = ['rentPct', 'vacancyPts', 'opexPct', 'capBps', 'discountBps', 'exitCapBps', 'growthPts', 'voidMonths', 'salePct'];
     var scTable = '<div class="scroll"><table class="grid" id="t-scen"><thead><tr><th>السيناريو</th><th>الاحتمال %</th>' +
       shockKeys.map(function (k) { return '<th>' + esc(E.SHOCKS[k].label) + ' <small>' + E.SHOCKS[k].unit + '</small></th>'; }).join('') +
       '<th class="num">NOI</th><th class="num">معدل الرسملة</th><th class="num">الرسملة المباشرة</th><th class="num">DCF</th><th class="num">المرجحة</th><th class="rowact"></th></tr></thead><tbody>' +

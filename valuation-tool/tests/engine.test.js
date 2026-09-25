@@ -214,3 +214,18 @@ test('rows without an expiry keep their difference in perpetuity (market+leases 
   const r = E.runAll(leaseCase({ leaseYears: '' }));
   close(r.direct.value, 80 / 0.08, 1e-9);
 });
+
+test('sensitivity covers lease assumptions: re-letting void and lease discount rate', () => {
+  const m = leaseCase({ voidMonths: '6' });
+  const base = E.runAll(m).direct.value;
+  // +3 months void in year 4 costs 3/12 of market rent, discounted 4 years at the cap rate
+  close(E.runAll(E.withShocks(m, { voidMonths: 3 })).direct.value, base - 25 * v ** 4, 1e-9);
+  // void can not go below zero months
+  close(E.runAll(E.withShocks(leaseCase({}), { voidMonths: -5 })).direct.value, E.runAll(leaseCase({})).direct.value, 1e-9);
+  // lease-rate shift re-discounts the contract-vs-market difference only
+  const w = 1 / 1.09;
+  close(E.runAll(E.withShocks(leaseCase({}), { leaseRateBps: 100 })).direct.value, 1250 - 20 * (w + w ** 2 + w ** 3), 1e-9);
+  const t = E.tornado(S.sample(), 'final');
+  assert.ok(t.rows.find((r) => r.key === 'voidMonths').swing > 0);
+  assert.ok(t.rows.find((r) => r.key === 'leaseRateBps').swing > 0);
+});

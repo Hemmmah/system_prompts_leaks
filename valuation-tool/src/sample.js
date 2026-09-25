@@ -106,7 +106,7 @@
       recon: { weights: { direct: '50', dcf: '30', sales: '20' }, overrideEnabled: false, overrideValue: '', overrideNote: '', rationale: 'رُجحت طريقة الرسملة المباشرة لتوفر أدلة معدلات رسملة من صفقات مماثلة في نفس المنطقة، مع استخدام DCF لاختبار أثر فرق الإيجار التعاقدي عن السوقي، والمقارنات البيعية كطريقة داعمة.' },
       sens: { metric: 'final', steps: {}, gridMetric: 'direct', rowVar: 'capBps', colVar: 'rentPct', rowStep: '25', colStep: '5', gridSize: '2' },
       scenarios: [
-        { name: 'متحفظ', prob: '25', shocks: { rentPct: '-7.5', vacancyPts: '3', opexPct: '5', capBps: '50', discountBps: '50', exitCapBps: '50', growthPts: '-1' } },
+        { name: 'متحفظ', prob: '25', shocks: { rentPct: '-7.5', vacancyPts: '3', opexPct: '5', capBps: '50', discountBps: '50', exitCapBps: '50', growthPts: '-1', voidMonths: '3' } },
         { name: 'أساسي', prob: '50', shocks: {} },
         { name: 'متفائل', prob: '25', shocks: { rentPct: '5', vacancyPts: '-2', capBps: '-25', discountBps: '-25', exitCapBps: '-25', growthPts: '0.5' } }
       ]
