@@ -104,6 +104,7 @@
         ]
       },
       recon: { weights: { direct: '50', dcf: '30', sales: '20' }, overrideEnabled: false, overrideValue: '', overrideNote: '', rationale: 'رُجحت طريقة الرسملة المباشرة لتوفر أدلة معدلات رسملة من صفقات مماثلة في نفس المنطقة، مع استخدام DCF لاختبار أثر فرق الإيجار التعاقدي عن السوقي، والمقارنات البيعية كطريقة داعمة.' },
+      benchmark: { value: '', target: 'final', tolerancePct: '3', residualPct: '', materialityPct: '5', leaseMethod: '', vacancyPct: '', noi: '', capRate: '', discountRate: '', wDirect: '', wDcf: '', wSales: '', note: '' },
       sens: { metric: 'final', steps: {}, gridMetric: 'direct', rowVar: 'capBps', colVar: 'rentPct', rowStep: '25', colStep: '5', gridSize: '2' },
       scenarios: [
         { name: 'متحفظ', prob: '25', shocks: { rentPct: '-7.5', vacancyPts: '3', opexPct: '5', capBps: '50', discountBps: '50', exitCapBps: '50', growthPts: '-1', voidMonths: '3' } },

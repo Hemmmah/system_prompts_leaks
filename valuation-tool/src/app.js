@@ -75,7 +75,7 @@
   var TABS = [
     ['case', 'بيانات الحالة'], ['rent', 'الإيجار السوقي'], ['noi', 'الدخل وNOI'], ['cap', 'معدل الرسملة'],
     ['direct', 'الرسملة المباشرة'], ['dcf', 'التدفقات المخصومة'], ['sales', 'المقارنات البيعية'],
-    ['sens', 'الحساسية والسيناريوهات'], ['report', 'التسوية والتقرير']
+    ['sens', 'الحساسية والسيناريوهات'], ['report', 'التسوية والتقرير'], ['bench', 'اختبار حالة معتمدة']
   ];
 
   // --------------------------------------------------------------- shared
@@ -590,6 +590,52 @@
       (cs.notes ? '<h3>ملاحظات</h3><p>' + esc(cs.notes) + '</p>' : '') + '</section>';
   }
 
+  // ------------------------------------------------------------- tab: bench
+  function tabBench() {
+    var bm = state.model.benchmark;
+    var b = E.benchmark(state.model, bm);
+    var targets = Object.keys(E.BENCH_TARGETS).map(function (k) { return [k, E.BENCH_TARGETS[k].label]; });
+    var form = '<section class="panel"><div class="panel-head"><h2>اختبار الأداة على حالة معتمدة</h2></div>' +
+      '<p class="hint">أدخل قيمة سبق أن اعتمدتها لهذا العقار، ثم ما تعرفه من افتراضاتك. تستبدل الأداة افتراضاتها بافتراضاتك واحداً تلو الآخر وتعيد الحساب كاملاً بعد كل خطوة، فيظهر أثر كل بند على القيمة، وما يبقى بعد ذلك هو الفرق غير المفسَّر. الحدود أدناه قابلة للتعديل وتُحدَّد قبل النظر في النتيجة.</p>' +
+      '<div class="form">' +
+      field('القيمة المعتمدة (' + esc(cur()) + ')', inp('benchmark.value', { num: 1, ph: 'من تقريرك الموقّع' })) +
+      field('تُقارن مع', sel('benchmark.target', targets)) +
+      field('حد التطابق ±%', inp('benchmark.tolerancePct', { num: 1 }), 'الشرط 1') +
+      field('حد غير المفسَّر ±%', inp('benchmark.residualPct', { num: 1, ph: 'فارغ = حد التطابق' }), 'الشرط 2') +
+      field('حد المادية لأثر العقود %', inp('benchmark.materialityPct', { num: 1 }), 'الشرط 3') +
+      '</div><div class="panel-head"><h3>افتراضاتك في التقرير المعتمد (أدخل ما تعرفه فقط)</h3></div><div class="form">' +
+      field('طريقة الرسملة', sel('benchmark.leaseMethod', [['', 'لا أعرف / لا تستبدل'], ['asIs', 'رسملة الدخل الحالي'], ['market', 'سوقي + تسوية العقود']])) +
+      field('نسبة الشغور %', inp('benchmark.vacancyPct', { num: 1 })) +
+      field('صافي الدخل NOI', inp('benchmark.noi', { num: 1 })) +
+      field('معدل الرسملة %', inp('benchmark.capRate', { num: 1 })) +
+      field('معدل الخصم %', inp('benchmark.discountRate', { num: 1 })) +
+      field('وزن الرسملة المباشرة', inp('benchmark.wDirect', { num: 1 })) +
+      field('وزن DCF', inp('benchmark.wDcf', { num: 1 })) +
+      field('وزن المقارنات', inp('benchmark.wSales', { num: 1 })) +
+      field('ملاحظة عن الحالة', inp('benchmark.note', { ph: 'رقم التقرير، التاريخ، نوع الأصل' }), '', 'wide') +
+      '</div></section>';
+    if (!b.ready) return form + '<section class="panel"><p class="hint">أدخل القيمة المعتمدة لتظهر النتيجة.</p></section>';
+
+    var condChip = function (c) {
+      if (c.applicable === false) return chip('لا ينطبق', 'muted');
+      return chip(c.pass ? 'ناجح' : 'راسب', c.pass ? 'good' : 'bad');
+    };
+    var conds = '<div class="scroll"><table class="stmt" id="t-bench-cond"><thead><tr><th>الشرط</th><th>النتيجة</th><th>القياس</th></tr></thead><tbody>' +
+      b.conditions.map(function (c, i) { return '<tr><td>' + (i + 1) + '. ' + esc(c.label) + '</td><td>' + condChip(c) + '</td><td>' + ltrNums(esc(c.detail)) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    var rows = [['قيمة الأداة (' + b.target + ')', b.toolValue, NaN, NaN, 'total']]
+      .concat(b.steps.map(function (s) { return ['↳ ' + s.label, s.delta, s.deltaPct, s.alone, '']; }))
+      .concat([['المتبقي غير المفسَّر', b.residual, b.residualPct, NaN, ''], ['القيمة المعتمدة', b.signed, b.gapPct, NaN, 'total']]);
+    var bridge = '<div class="scroll"><table class="stmt" id="t-bench"><thead><tr><th>البند</th><th class="num">الأثر بالتتابع (' + esc(cur()) + ')</th><th class="num">% من الأداة</th><th class="num">أثره منفرداً</th></tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr class="' + r[4] + '"><td>' + ltrNums(esc(r[0])) + '</td><td class="num">' + M(r[1]) + '</td><td class="num">' + Pf(r[2]) + '</td><td class="num">' + M(r[3]) + '</td></tr>'; }).join('') +
+      '</tbody></table></div><p class="hint">الأثر بالتتابع يعتمد على ترتيب الاستبدال (العقود، الشغور، NOI، معدل الرسملة، معدل الخصم، الأوزان). عمود «أثره منفرداً» يبيّن أثر كل بند وحده على قيمة الأداة، والفرق بين العمودين هو تداخل البنود.</p>';
+    var acts = '<ul class="warnings">' + b.actions.map(function (a) { return '<li class="' + (a.kind === 'go' ? 'ok' : '') + '">' + chip(a.kind === 'stop' ? 'أوقف' : a.kind === 'go' ? 'استمر' : 'غيّر', a.kind === 'stop' ? 'bad' : a.kind === 'go' ? 'good' : 'warn') + ' ' + ltrNums(esc(a.text)) + '</li>'; }).join('') + '</ul>';
+    return form +
+      '<section class="panel"><div class="panel-head"><h2>النتيجة</h2><div class="tools">' + btn('copyTable', 'نسخ الجسر', 'data-table="t-bench"', 'ghost') + '</div></div>' +
+      '<div class="result ' + (b.passed ? '' : 'gold') + '"><span class="lab">الفرق عن القيمة المعتمدة</span><span class="big">' + Pf(b.gapPct) + '</span><span class="lab">' + (b.passed ? 'اجتازت الشروط' : 'لم تجتز كل الشروط') + ' · الأداة ' + M(b.toolValue) + ' · المعتمدة ' + M(b.signed) + '</span></div>' +
+      conds + '<div class="panel-head"><h3>جسر الفروقات</h3></div>' + bridge +
+      '<div class="panel-head"><h3>القرار المترتب</h3></div>' + acts + '</section>';
+  }
+
   // ---------------------------------------------------------------- shell
   function kpis(R) {
     var r = state.model.case.rounding;
@@ -630,7 +676,7 @@
     return '<datalist id="cats">' + Object.keys(cats).map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>';
   }
 
-  var TAB_FN = { case: tabCase, rent: tabRent, noi: tabNOI, cap: tabCap, direct: tabDirect, dcf: tabDCF, sales: tabSales, sens: tabSens, report: tabReport };
+  var TAB_FN = { case: tabCase, rent: tabRent, noi: tabNOI, cap: tabCap, direct: tabDirect, dcf: tabDCF, sales: tabSales, sens: tabSens, report: tabReport, bench: tabBench };
 
   function render() {
     var a = document.activeElement, fp = null, ss = null, se = null;
@@ -762,7 +808,7 @@
   (function migrate() {
     var base = S.sample();
     Object.keys(base).forEach(function (k) { if (state.model[k] === undefined) state.model[k] = base[k]; });
-    ['sens', 'cap', 'dcf', 'recon', 'direct'].forEach(function (k) { Object.keys(base[k]).forEach(function (kk) { if (state.model[k][kk] === undefined) state.model[k][kk] = clone(base[k][kk]); }); });
+    ['sens', 'cap', 'dcf', 'recon', 'direct', 'benchmark'].forEach(function (k) { Object.keys(base[k]).forEach(function (kk) { if (state.model[k][kk] === undefined) state.model[k][kk] = clone(base[k][kk]); }); });
   })();
 
   render();

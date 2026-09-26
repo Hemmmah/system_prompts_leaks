@@ -229,3 +229,43 @@ test('sensitivity covers lease assumptions: re-letting void and lease discount r
   assert.ok(t.rows.find((r) => r.key === 'voidMonths').swing > 0);
   assert.ok(t.rows.find((r) => r.key === 'leaseRateBps').swing > 0);
 });
+
+// gate 3: test against a value the appraiser already signed off
+const signedCase = () => {
+  const alt = S.sample();
+  alt.cap.selection = 'manual'; alt.cap.manual = '8'; alt.income.vacancyPct = '10'; alt.direct.method = 'asIs';
+  return E.runAll(alt).recon.weighted;
+};
+
+test('benchmark bridge: substituting the appraiser assumptions reproduces the signed value exactly', () => {
+  const signed = signedCase();
+  const b = E.benchmark(S.sample(), { value: String(signed), capRate: '8', vacancyPct: '10', leaseMethod: 'asIs' });
+  assert.equal(b.ready, true);
+  close(b.residual, 0, 1e-9);
+  // the bridge adds up: steps + residual = gap
+  close(b.steps.reduce((s, x) => s + x.delta, 0) + b.residual, b.gap, 1e-9);
+  assert.deepEqual(b.steps.map((s) => s.key), ['lease', 'vacancy', 'cap']);
+  const [c1, c2, c3] = b.conditions;
+  assert.equal(c1.pass, false);   // −10.9% gap is outside ±3%
+  assert.equal(c2.pass, true);    // but fully explained by named assumptions
+  assert.equal(c3.pass, false);   // leases move the final value 2.3% < 5% materiality
+  close(b.lease.effect, 0.023, 0.05);
+  assert.deepEqual(b.actions.map((a) => a.kind), ['change', 'change']);
+});
+
+test('benchmark: unexplained gap stops development; matching value passes; thresholds are editable', () => {
+  const m = S.sample();
+  const none = E.benchmark(m, { value: String(signedCase()) });
+  assert.equal(none.conditions[1].pass, false);
+  assert.equal(none.actions[0].kind, 'stop');
+  const own = E.runAll(m).recon.weighted;
+  const ok = E.benchmark(m, { value: String(own * 1.02), materialityPct: '2' });
+  assert.equal(ok.conditions[0].pass, true);
+  assert.equal(ok.conditions[1].pass, true);
+  assert.equal(ok.conditions[2].pass, true);
+  assert.equal(ok.actions.at(-1).kind, 'go');
+  assert.equal(E.benchmark(m, { value: String(own * 1.02), tolerancePct: '1' }).conditions[0].pass, false);
+  assert.equal(E.benchmark(m, {}).ready, false);
+  // target can be the direct value instead of the final value
+  close(E.benchmark(m, { value: '1', target: 'direct' }).toolValue, E.runAll(m).direct.value, 1e-9);
+});

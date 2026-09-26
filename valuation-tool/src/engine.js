@@ -878,9 +878,90 @@
 
   function fmtN(x, d) {
     if (!isNum(x)) return '—';
-    return x.toLocaleString('en-US', { maximumFractionDigits: d === undefined ? 0 : d, minimumFractionDigits: d === undefined ? 0 : d });
+    var dd = d === undefined ? 0 : d;
+    if (Math.abs(x) < 0.5 * Math.pow(10, -dd)) x = 0; // never show "-0"
+    return x.toLocaleString('en-US', { maximumFractionDigits: dd, minimumFractionDigits: dd });
   }
-  function fmtP(x, d) { return isNum(x) ? (x * 100).toFixed(d === undefined ? 2 : d) + '%' : '—'; }
+  function fmtP(x, d) {
+    if (!isNum(x)) return '—';
+    var dd = d === undefined ? 2 : d, v = x * 100;
+    if (Math.abs(v) < 0.5 * Math.pow(10, -dd)) v = 0;
+    return v.toFixed(dd) + '%';
+  }
+
+  // ------------------------------------------------------ benchmark (gate 3)
+
+  var BENCH_TARGETS = {
+    final: { label: 'القيمة النهائية المرجحة', get: function (r) { return r.recon.weighted; } },
+    direct: { label: 'قيمة الرسملة المباشرة', get: function (r) { return r.direct.value; } },
+    dcf: { label: 'قيمة DCF', get: function (r) { return r.dcf.value; } }
+  };
+
+  /**
+   * Tests the tool against a value the appraiser already signed off.
+   * The appraiser's own assumptions are substituted into the model one at a time, in a fixed order,
+   * and the whole model is re-run after each, so every step's effect is measured on the target value
+   * itself. Whatever is left after all substitutions is the unexplained residual.
+   * Three pass/fail conditions, all thresholds editable:
+   *   1. gap between tool and signed value within tolerancePct
+   *   2. unexplained residual within residualPct (defaults to tolerancePct)
+   *   3. lease modelling moves the target value by at least materialityPct (else it is not worth being the default)
+   */
+  function benchmark(model, b) {
+    b = b || {};
+    var T = BENCH_TARGETS[b.target] || BENCH_TARGETS.final;
+    var signed = num(b.value);
+    if (!(signed > 0)) return { ready: false };
+    var tol = numOr(b.tolerancePct, 3) / 100, resTol = numOr(b.residualPct, numOr(b.tolerancePct, 3)) / 100, mat = numOr(b.materialityPct, 5) / 100;
+    var valueOf = function (m) { return T.get(runAll(m, { skipRange: true })); };
+    var copy = function (m) { return JSON.parse(JSON.stringify(m)); };
+
+    var subs = [];
+    if (b.leaseMethod === 'market' || b.leaseMethod === 'asIs') subs.push({ key: 'lease', label: b.leaseMethod === 'market' ? 'طريقة الرسملة: سوقي + تسوية العقود' : 'طريقة الرسملة: رسملة الدخل الحالي', apply: function (m) { m.direct = m.direct || {}; m.direct.method = b.leaseMethod; } });
+    if (isNum(num(b.vacancyPct))) subs.push({ key: 'vacancy', label: 'نسبة الشغور ' + num(b.vacancyPct) + '%', apply: function (m) { m.income.vacancyPct = String(num(b.vacancyPct)); } });
+    if (isNum(num(b.noi))) subs.push({ key: 'noi', label: 'صافي الدخل NOI = ' + fmtN(num(b.noi)), apply: function (m) { m.noiOverride = { enabled: true, value: String(num(b.noi)), note: 'اختبار حالة معتمدة' }; } });
+    if (isNum(num(b.capRate))) subs.push({ key: 'cap', label: 'معدل الرسملة ' + num(b.capRate) + '%', apply: function (m) { m.cap.selection = 'manual'; m.cap.manual = String(num(b.capRate)); m.cap.note = m.cap.note || 'اختبار حالة معتمدة'; } });
+    if (isNum(num(b.discountRate))) subs.push({ key: 'discount', label: 'معدل الخصم ' + num(b.discountRate) + '%', apply: function (m) { m.dcf.discountRate = String(num(b.discountRate)); } });
+    var ws = { direct: b.wDirect, dcf: b.wDcf, sales: b.wSales };
+    if (Object.keys(ws).some(function (k) { return isNum(num(ws[k])); })) subs.push({ key: 'weights', label: 'أوزان الطرق ' + ['direct', 'dcf', 'sales'].map(function (k) { return numOr(ws[k], 0); }).join(' / '), apply: function (m) { m.recon.weights = { direct: String(numOr(ws.direct, 0)), dcf: String(numOr(ws.dcf, 0)), sales: String(numOr(ws.sales, 0)) }; } });
+
+    var base = copy(model); delete base.__shocks;
+    var toolValue = valueOf(base);
+    var cur = copy(base), prev = toolValue, steps = [];
+    subs.forEach(function (s) {
+      s.apply(cur);
+      var v = valueOf(cur);
+      var alone = copy(base); s.apply(alone);
+      var va = valueOf(alone);
+      steps.push({ key: s.key, label: s.label, value: v, delta: v - prev, deltaPct: (v - prev) / toolValue, alone: va - toolValue });
+      prev = v;
+    });
+    var gap = signed - toolValue, residual = signed - prev;
+    if (Math.abs(residual) < 1e-6) residual = 0; // floating noise, not an unexplained difference
+
+    var withMethod = function (mth) { var m = copy(base); m.direct = m.direct || {}; m.direct.method = mth; return valueOf(m); };
+    var hasLeases = (base.income || {}).mode !== 'direct' && ((base.income || {}).units || []).some(function (u) { return num(u.contractRent) > 0; });
+    var vMkt = hasLeases ? withMethod('market') : NaN, vAsIs = hasLeases ? withMethod('asIs') : NaN;
+    var leaseEffect = hasLeases ? (vMkt - vAsIs) / vAsIs : NaN;
+
+    var c1 = { key: 'match', label: 'الأداة تصل إلى القيمة المعتمدة', pass: Math.abs(gap / signed) <= tol + 1e-12, measured: gap / signed, threshold: tol,
+      detail: 'الفرق ' + fmtP(gap / signed) + ' (الحد ±' + fmtP(tol) + ')' };
+    var c2 = { key: 'explained', label: 'الفرق مفسَّر ببنود مسماة', pass: Math.abs(residual / signed) <= resTol + 1e-12, measured: residual / signed, threshold: resTol,
+      detail: subs.length ? 'المتبقي غير المفسَّر بعد ' + subs.length + ' افتراضات: ' + fmtP(residual / signed) + ' (الحد ±' + fmtP(resTol) + ')' : 'لم تُدخل افتراضات المقيّم؛ الفرق كله غير مفسَّر: ' + fmtP(residual / signed) };
+    var c3 = { key: 'leases', label: 'أثر نمذجة العقود جوهري', applicable: hasLeases, pass: hasLeases ? Math.abs(leaseEffect) >= mat : null, measured: leaseEffect, threshold: mat,
+      detail: hasLeases ? 'تغيّر ' + T.label + ' بين الطريقتين ' + fmtP(leaseEffect) + ' (حد المادية ' + fmtP(mat) + ')' : 'لا توجد عقود بإيجار تعاقدي — الشرط لا ينطبق' };
+
+    var big = steps.slice().sort(function (a, b2) { return Math.abs(b2.delta) - Math.abs(a.delta); })[0];
+    var actions = [];
+    if (!c2.pass) actions.push({ kind: 'stop', text: 'أوقف إضافة أي حساب جديد: ' + fmtP(Math.abs(residual / signed)) + ' من القيمة غير مفسَّر. أدخل بقية افتراضاتك في الجسر؛ إن بقي الفرق فالخلل في بنية النموذج ويُفحص أولاً، ويصبح التدقيق خلية بخلية (تصدير Excel بمعادلات حية) أولوية.' });
+    else if (!c1.pass) actions.push({ kind: 'change', text: 'الفرق منهجي ومفسَّر' + (big ? '، وأكبره من «' + big.label + '»' : '') + '. عدّل الإعدادات الافتراضية لتطابق منهجيتك، ولا تضف حسابات جديدة.' });
+    if (c3.applicable && !c3.pass) actions.push({ kind: 'change', text: 'أثر العقود أقل من حد المادية: اجعل رسملة الدخل الحالي هي الافتراضية وأبقِ نمذجة العقود خياراً، وأوقف تعميقها، ووجّه الجهد إلى أدلة معدل الرسملة.' });
+    if (c1.pass && c2.pass && (c3.pass || !c3.applicable)) actions.push({ kind: 'go', text: 'اجتازت الحالة الشروط. الخطوة التالية: حالة معتمدة ثانية من نوع أصل مختلف قبل أي تطوير جديد.' });
+
+    return { ready: true, target: T.label, signed: signed, toolValue: toolValue, gap: gap, gapPct: gap / signed, steps: steps, finalValue: prev,
+      residual: residual, residualPct: residual / signed, lease: { applicable: hasLeases, market: vMkt, asIs: vAsIs, effect: leaseEffect },
+      conditions: [c1, c2, c3], passed: c1.pass && c2.pass && (c3.pass !== false), actions: actions };
+  }
 
   return {
     num: num, pct: pct, numOr: numOr, isNum: isNum, series: series, schedule: schedule, roundTo: roundTo,
@@ -890,6 +971,7 @@
     mortgageConstant: mortgageConstant, computeCapRate: computeCapRate, computeDirectCap: computeDirectCap, computeDCF: computeDCF,
     computeSales: computeSales, leaseAdjustment: leaseAdjustment, reconcile: reconcile, runAll: runAll, withShocks: withShocks,
     SHOCKS: SHOCKS, METRICS: METRICS, ADJ_KEYS: ADJ_KEYS, tornado: tornado, grid: grid, scenarios: scenarios, breakEven: breakEven,
+    benchmark: benchmark, BENCH_TARGETS: BENCH_TARGETS,
     parseTable: parseTable, importRows: importRows, mapColumns: mapColumns, fmtN: fmtN, fmtP: fmtP
   };
 });
